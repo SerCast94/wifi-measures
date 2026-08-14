@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+
+  template-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    container_name: template-redis
+    networks:
+      - app-network
+
+  template-postgres:
+    image: postgres:13
+    restart: unless-stopped
+    container_name: template-postgres
+    environment:
+      POSTGRES_USER: "${DB_USERNAME:-postgres}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD:-postgres}"
+      POSTGRES_DB: "${DB_NAME:-wifi_measures}"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres} -d ${DB_NAME:-wifi_measures}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - app-network
+
+  template-app:
+    image: "${IMAGE_NAME:-wifi-measures:latest}"
+    container_name: template-app
+    restart: unless-stopped
+    depends_on:
+      template-postgres:
+        condition: service_healthy
+      template-redis:
+        condition: service_started
+    environment:
+      DATABASE_URL: "postgresql://${DB_USERNAME:-postgres}:${DB_PASSWORD:-postgres}@template-postgres:5432/${DB_NAME:-wifi_measures}"
+      SECRET_KEY: "${SECRET_KEY:-please-change-this}"
+      LINKLIVE_CLIENT_ID: "${LINKLIVE_CLIENT_ID:-}"
+      LINKLIVE_CLIENT_SECRET: "${LINKLIVE_CLIENT_SECRET:-}"
+      LINKLIVE_BASE_URL: "${LINKLIVE_BASE_URL:-https://api.link-live.com}"
+    ports:
+      - "${APP_EXTERNAL_PORT:-8000}:8000"
+    networks:
+      - app-network
+
+volumes:
+  postgres_data:
+
+networks:
+  app-network:
+    driver: bridge

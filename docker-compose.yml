@@ -1,0 +1,54 @@
+services:
+
+  # Servicio de Redis
+  template-redis:
+    image: redis:alpine
+    restart: always
+    container_name: template-redis
+    # ports:
+    #   - "${REDIS_EXTERNAL_PORT}:6379"
+    networks:
+      - app-network
+
+  # Servicio de PostgreSQL
+  template-postgres:
+    image: postgres:13
+    restart: always
+    container_name: template-postgres
+    environment:
+      POSTGRES_USER: "${DB_USERNAME}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD}"
+      POSTGRES_DB: "${DB_NAME}"
+    ports:
+      - "${DB_EXTERNAL_PORT}:5432"
+    networks:
+      - app-network
+    volumes:
+      - ./posgresql-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_NAME}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Servicio de Backend + Frontend (en el mismo contenedor)
+  template-app:
+    build:
+      context: ./
+    container_name: template-app
+    ports:
+      - "${APP_EXTERNAL_PORT}:3001"
+    volumes:
+      - ./backups:/app/apps/api/dist/backups
+    depends_on:
+      template-postgres:
+        condition: service_healthy
+      template-redis:
+        condition: service_started
+    networks:
+      - app-network
+
+# Redes para los servicios
+networks:
+  app-network:
+    driver: bridge

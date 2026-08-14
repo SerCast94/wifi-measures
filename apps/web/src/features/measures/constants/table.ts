@@ -1,0 +1,1 @@
+export const sizeOptions = [20, 50, 100];

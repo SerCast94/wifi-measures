@@ -1,0 +1,36 @@
+{
+	"name": "wifi-measures",
+	"version": "1.0.0",
+	"main": "index.js",
+	"private": true,
+	"scripts": {
+		"build": "turbo build",
+		"dev": "node scripts/kill-ports.js && turbo dev",
+		"kill-ports": "node scripts/kill-ports.js",
+		"start:prod": "node apps/api/dist/main.js",
+		"lint": "turbo lint",
+		"format": "prettier --write \"**/*.{ts,tsx,md}\""
+	},
+	"keywords": [],
+	"author": "Rafael Larrea Sánchez",
+	"license": "ISC",
+	"description": "",
+	"engines": {
+		"node": ">=18"
+	},
+	"packageManager": "npm@10.8.2",
+	"workspaces": [
+		"apps/api",
+		"apps/web"
+	],
+	"devDependencies": {
+		"turbo": "^2.5.4"
+	},
+	"optionalDependencies": {
+		"@rollup/rollup-linux-x64-gnu": "4.9.5"
+	},
+	"dependencies": {
+		"zod": "^3.25.51",
+		"zod-validation-error": "^3.4.1"
+	}
+}

@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+env/
+.venv/
+venv/
+ENV/
+build/
+dist/
+
+# Byte-compiled / optimized / DLL files
+*.pyc
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store
+
+# Node
+node_modules/
+
+# Logs
+*.log
+
+# SQLite
+*.db
+*.sqlite3
+
+# Reports
+/reports/
+
+# pytest
+.pytest_cache/
+
+# Coverage
+coverage.xml
+htmlcov/
+
+# Docker
+**/docker-compose.override.yml
+node_modules
+
+.turbo
+
+.env
+
+backups
+
+posgresql-data
