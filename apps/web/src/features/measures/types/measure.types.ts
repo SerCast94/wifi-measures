@@ -90,6 +90,7 @@ export interface ApiMeasure {
   name: string;
   firNombre: string;
   firDni: string;
+  raw?: unknown;
   createdAt: Date;
   updatedAt: Date;
 }

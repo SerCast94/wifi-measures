@@ -1,5 +1,6 @@
-import { Info, FileImage } from "lucide-react";
+import { Flame, Info, FileImage } from "lucide-react";
 
+import { HeatmapTab } from "./HeatmapTab";
 import { ImagesTab } from "./ImagesTab";
 import { GeneralTab } from "./GeneralTab";
 import type { Area } from "@/features/measures/types/areas.types";
@@ -31,6 +32,11 @@ export const AreaTabs = ({ area, activeTab, setActiveTab }: AreaTabsProps) => {
             label: "Imágenes",
             icon: <FileImage className="w-4 h-4" />,
           },
+          {
+            value: "heatmap",
+            label: "Mapa de calor",
+            icon: <Flame className="w-4 h-4" />,
+          },
         ]}
         activeTab={activeTab}
         onChange={setActiveTab}
@@ -50,6 +56,14 @@ export const AreaTabs = ({ area, activeTab, setActiveTab }: AreaTabsProps) => {
         className="space-y-4 duration-300 animate-in fade-in-50 slide-in-from-bottom-5"
       >
         <ImagesTab area={area} />
+      </TabsContent>
+
+      {/* Contenido: Mapa de calor */}
+      <TabsContent
+        value="heatmap"
+        className="space-y-4 duration-300 animate-in fade-in-50 slide-in-from-bottom-5"
+      >
+        <HeatmapTab area={area} />
       </TabsContent>
     </Tabs>
   );

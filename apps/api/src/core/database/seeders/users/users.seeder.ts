@@ -22,7 +22,10 @@ export class UsersSeeder {
     try {
       const db = this.database.getClient();
       if (!db) {
-        this.logger.warn(this.context, "Database client not available. Skipping seed.");
+        this.logger.warn(
+          this.context,
+          "Database client not available. Skipping seed."
+        );
         return;
       }
 
@@ -129,7 +132,9 @@ export class UsersSeeder {
           const allPermissions = await tx.permission.findMany();
 
           const rolePermissions = allPermissions
-            .filter((permission: any) => role.permissions?.includes(permission.name))
+            .filter((permission: any) =>
+              role.permissions?.includes(permission.name)
+            )
             .map((permission: any) => ({
               roleId,
               permissionId: permission.id,

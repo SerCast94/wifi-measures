@@ -88,6 +88,7 @@ export class MeasureEntity {
   name: string | null;
   firNombre: string | null;
   firDni: string | null;
+  raw?: any;
   createdAt: Date;
   updatedAt: Date;
 

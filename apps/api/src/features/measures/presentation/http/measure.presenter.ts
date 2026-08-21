@@ -1,4 +1,4 @@
-import { ApiProperty } from "@nestjs/swagger";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
 import { MeasureEntity } from "@features/measures/domain/entities/measure.entity";
 
@@ -185,6 +185,8 @@ export class MeasurePresenter {
   createdAt: Date;
   @ApiProperty({ type: "string", example: "2025-09-04T12:00:00Z" })
   updatedAt: Date;
+  @ApiPropertyOptional()
+  raw?: any;
 
   constructor(measure: MeasureEntity) {
     this.id = measure.id;
@@ -278,5 +280,6 @@ export class MeasurePresenter {
     this.firDni = measure.firDni;
     this.createdAt = measure.createdAt;
     this.updatedAt = measure.updatedAt;
+    this.raw = measure.raw ?? null;
   }
 }

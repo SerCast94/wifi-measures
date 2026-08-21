@@ -16,11 +16,11 @@ services:
     restart: always
     container_name: template-postgres
     environment:
-      POSTGRES_USER: "${DB_USERNAME}"
-      POSTGRES_PASSWORD: "${DB_PASSWORD}"
-      POSTGRES_DB: "${DB_NAME}"
+      POSTGRES_USER: "${DB_USERNAME:-postgres}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD:-postgres}"
+      POSTGRES_DB: "${DB_NAME:-wifi_measures}"
     ports:
-      - "${DB_EXTERNAL_PORT}:5432"
+      - "${DB_EXTERNAL_PORT:-5432}:5432"
     networks:
       - app-network
     volumes:
@@ -36,8 +36,10 @@ services:
     build:
       context: ./
     container_name: template-app
+    env_file:
+      - .env
     ports:
-      - "${APP_EXTERNAL_PORT}:3001"
+      - "${APP_EXTERNAL_PORT:-3001}:80"
     volumes:
       - ./backups:/app/apps/api/dist/backups
     depends_on:

@@ -5,6 +5,7 @@ import { type RouteItemType } from "@/config/routes.config";
 
 const AreasPage = lazy(() => import("./AreasPage"));
 const AreaPage = lazy(() => import("./[id]/AreaPage"));
+const ReportPage = lazy(() => import("./[id]/reporte/ReportPage"));
 
 const AreasPagesRoute: RouteItemType = {
   path: "areas",
@@ -17,6 +18,10 @@ const AreasPagesRoute: RouteItemType = {
     {
       path: ":areaId",
       element: <AreaPage />,
+    },
+    {
+      path: ":areaId/reporte",
+      element: <ReportPage />,
     },
   ],
 };

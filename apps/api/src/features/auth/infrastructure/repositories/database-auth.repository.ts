@@ -51,6 +51,9 @@ export class DatabaseAuthRepository implements IAuthRepository {
 
       return AuthUserMapper.databaseUserModelToUserEntity(authUser);
     } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
       throw new DatabaseException(
         this.config.get("env") === "development"
           ? error.message

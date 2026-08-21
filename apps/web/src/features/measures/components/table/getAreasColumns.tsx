@@ -1,19 +1,36 @@
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 import { type ColumnDef, type Row } from "@tanstack/react-table";
 
 import type { Area } from "../../types/areas.types";
+import type { MeasureModel } from "../../models/measure.model";
 import { GoToAreaBtn } from "../actions-buttons/GoToAreaBtn";
-import { DownloadAreaReportBtn } from "../actions-buttons/DownloadAreaReportBtn";
-import { DownloadAreaImagesBtn } from "../actions-buttons/DownloadAreaImagesBtn";
+
+const NETALLY_COLORS: Record<string, string> = {
+  red: "bg-red-500",
+  yellow: "bg-yellow-400",
+  green: "bg-green-500",
+  black: "bg-gray-400",
+};
+
+const getLatestMeasure = (measures: MeasureModel[]): MeasureModel | undefined =>
+  [...measures].sort(
+    (a, b) => b.datetime.getTime() - a.datetime.getTime()
+  )[0];
+
+const statusBadge = (color: string) => (
+  <div className="flex items-center gap-2">
+    <span
+      className={`inline-block w-3.5 h-3.5 rounded-full ${
+        NETALLY_COLORS[color] ?? "bg-gray-300"
+      }`}
+    />
+    <p className="text-sm capitalize">{color || "—"}</p>
+  </div>
+);
 
 export const getAreasColumns = (): ColumnDef<Area>[] => {
   const columns = [
-    {
-      accessorKey: "id",
-      header: "ID AREA",
-      cell: ({ row }: { row: Row<Area> }) => (
-        <div className="w-[75px] my-2">{row.original.id}</div>
-      ),
-    },
     {
       accessorKey: "name",
       header: "NOMBRE",
@@ -22,46 +39,46 @@ export const getAreasColumns = (): ColumnDef<Area>[] => {
       ),
     },
     {
-      accessorKey: "provincia",
-      header: "PROVINCIA",
+      id: "estado",
+      header: "ESTADO",
       cell: ({ row }: { row: Row<Area> }) => (
-        <div className="w-[75px]">{row.original.provincia}</div>
+        <div className="w-[100px]">
+          {statusBadge(
+            `${(
+              (getLatestMeasure(row.original.measures)?.raw as
+                | Record<string, unknown>
+                | undefined)?.overallColor ?? ""
+            )}`
+          )}
+        </div>
       ),
     },
     {
-      accessorKey: "measures.length",
-      header: "Nº MEDIDAS",
+      id: "resultados",
+      header: "Nº RESULTADOS",
       cell: ({ row }: { row: Row<Area> }) => (
         <div className="w-[75px]">{row.original.measures.length}</div>
       ),
     },
     {
-      accessorKey: "measures",
-      header: "MEDIDAS",
-      cell: ({ row }: { row: Row<Area> }) => (
-        <div className="w-[150px]">
-          {row.original.measures
-            .map(
-              (measure) =>
-                `P${measure.metadata["PTO_MEDIDA"]}M${measure.metadata["N_MEDIDA"]}`
-            )
-            .join(", ")}
-        </div>
-      ),
+      id: "ultimaFecha",
+      header: "ÚLTIMA MEDICIÓN",
+      cell: ({ row }: { row: Row<Area> }) => {
+        const latest = getLatestMeasure(row.original.measures);
+        return (
+          <div className="w-[150px]">
+            {latest
+              ? format(latest.datetime, "dd/MM/yyyy HH:mm", { locale: es })
+              : "—"}
+          </div>
+        );
+      },
     },
     {
       id: "actions",
       header: "ACCIONES",
       cell: ({ row }: { row: Row<Area> }) => (
         <div className="flex my-1 space-x-2">
-          <DownloadAreaReportBtn
-            className="hidden sm:flex"
-            area={row.original}
-          />
-          <DownloadAreaImagesBtn
-            className="hidden text-white bg-green-800 sm:flex hover:bg-green-900"
-            area={row.original}
-          />
           <GoToAreaBtn areaId={`${row.original.id}`} />
         </div>
       ),

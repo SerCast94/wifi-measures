@@ -6,9 +6,11 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { ChevronUp, ChevronDown } from "lucide-react";
+import { ChevronUp, ChevronDown, X } from "lucide-react";
 
 import { cn } from "@/core/lib/utils";
+import { Badge } from "@/core/atomic-components/badge";
+import { Button } from "@/core/atomic-components/button";
 import {
   Table,
   TableBody,
@@ -26,7 +28,15 @@ import { PaginationStats } from "@/core/components/Pagination/PaginationStats";
 import { PageSizeSelector } from "@/core/components/Pagination/PageSizeSelector";
 
 export const MeasuresTable = () => {
-  const { measuresOrdered, pagination, setPagination } = useMeasuresTable();
+  const {
+    measuresOrdered,
+    pagination,
+    setPagination,
+    color,
+    failed,
+    clearFilters,
+    hasActiveFilters,
+  } = useMeasuresTable();
 
   const globalFilter = useTableMeasuresStore((state) => state.globalFilter);
   const setGlobalFilter = useTableMeasuresStore(
@@ -62,6 +72,26 @@ export const MeasuresTable = () => {
 
   return (
     <>
+      {hasActiveFilters && (
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <span className="text-sm text-muted-foreground">Filtros:</span>
+          {color && (
+            <Badge variant="secondary" className="capitalize">
+              Estado: {color}
+            </Badge>
+          )}
+          {failed && <Badge variant="secondary">Con fallos</Badge>}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearFilters}
+            className="h-7 px-2 text-muted-foreground"
+          >
+            <X className="w-3.5 h-3.5 mr-1" />
+            Limpiar
+          </Button>
+        </div>
+      )}
       <div className="border rounded-md">
         <Table>
           <TableHeader>

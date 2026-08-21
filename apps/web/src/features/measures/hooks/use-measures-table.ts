@@ -1,12 +1,19 @@
 import { useEffect, useMemo } from "react";
 
-import { useQueryState, parseAsNumberLiteral, parseAsString } from "nuqs";
+import {
+  useQueryState,
+  parseAsNumberLiteral,
+  parseAsString,
+  parseAsBoolean,
+} from "nuqs";
 
 import { sizeOptions } from "../constants/table";
 import { sortMeasures } from "../lib/measures.helper";
 import { useMeasuresStore } from "../store/measures.store";
 import { parseAsPositiveInt } from "@/core/lib/parseAsPositiveInt";
 import { useTableMeasuresStore } from "../store/table-measures.store";
+
+export const MEASURE_COLORS = ["red", "yellow", "green", "black"] as const;
 
 export const useMeasuresTable = () => {
   const measures = useMeasuresStore((state) => state.measures);
@@ -22,6 +29,16 @@ export const useMeasuresTable = () => {
 
   const [filter, setFilter] = useQueryState("q", parseAsString.withDefault(""));
 
+  const [color, setColor] = useQueryState(
+    "color",
+    parseAsString.withDefault("")
+  );
+
+  const [failed, setFailed] = useQueryState(
+    "failed",
+    parseAsBoolean.withDefault(false)
+  );
+
   const pagination = useTableMeasuresStore((state) => state.pagination);
   const setPagination = useTableMeasuresStore((state) => state.setPagination);
 
@@ -29,6 +46,36 @@ export const useMeasuresTable = () => {
     () => Object.values(measures).sort(sortMeasures),
     [measures]
   );
+
+  const measuresFiltered = useMemo(() => {
+    let list = measuresOrdered;
+    if (color) {
+      list = list.filter(
+        (measure) =>
+          (measure.raw as Record<string, unknown> | undefined)?.overallColor ===
+          color
+      );
+    }
+    if (failed) {
+      list = list.filter((measure) => {
+        const raw = measure.raw as Record<string, unknown> | undefined;
+        if (!raw) return false;
+        const failures = [
+          ...((raw.failureReasons ?? []) as unknown[]),
+          ...((raw.linkFailureReasons ?? []) as unknown[]),
+        ];
+        return failures.length > 0;
+      });
+    }
+    return list;
+  }, [measuresOrdered, color, failed]);
+
+  const clearFilters = () => {
+    setColor("");
+    setFailed(false);
+  };
+
+  const hasActiveFilters = Boolean(color) || failed;
 
   const globalFilter = useTableMeasuresStore((state) => state.globalFilter);
   const setGlobalFilter = useTableMeasuresStore(
@@ -84,8 +131,14 @@ export const useMeasuresTable = () => {
   }, [globalFilter]);
 
   return {
-    measuresOrdered,
+    measuresOrdered: measuresFiltered,
     pagination,
     setPagination,
+    color,
+    setColor,
+    failed,
+    setFailed,
+    clearFilters,
+    hasActiveFilters,
   };
 };

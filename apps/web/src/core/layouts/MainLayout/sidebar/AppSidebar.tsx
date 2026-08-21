@@ -1,6 +1,14 @@
 import { memo, useEffect } from "react";
 
-import { GlobeIcon, MapIcon, RadioTowerIcon, Users2Icon } from "lucide-react";
+import {
+  Activity,
+  GlobeIcon,
+  LayoutDashboard,
+  Radar,
+  RadioTowerIcon,
+  Router,
+  Users2Icon,
+} from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 
 import { cn } from "@/core/lib/utils";
@@ -30,19 +38,34 @@ export interface MenuItem {
 
 const homeItems: MenuItem[] = [
   {
-    title: "Medidas Wi‑Fi",
+    title: "Inicio",
     url: "/home",
+    icon: LayoutDashboard,
+  },
+  {
+    title: "Medidas",
+    url: "/measures",
     icon: RadioTowerIcon,
   },
   {
-    title: "Áreas Wi‑Fi",
+    title: "Áreas",
     url: "/areas",
     icon: GlobeIcon,
   },
   {
-    title: "Mapa",
-    url: "/map",
-    icon: MapIcon,
+    title: "Encuestas",
+    url: "/surveys",
+    icon: Radar,
+  },
+  {
+    title: "Análisis",
+    url: "/analyses",
+    icon: Activity,
+  },
+  {
+    title: "Unidades",
+    url: "/units",
+    icon: Router,
   },
 ];
 

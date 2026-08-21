@@ -1,6 +1,6 @@
 export const adminUser = {
-  name: "Administrador",
-  email: "rafael.larrea@magtel.es",
-  username: "admin",
-  password: "Abc123",
+  name: "Camilo",
+  email: "sergio.castillo@magtel.es",
+  username: "camose",
+  password: "Altavoz.123",
 };

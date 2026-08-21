@@ -3,9 +3,9 @@ import { Module } from "@nestjs/common";
 import { join } from "path";
 
 // Core Modules
-import { OdkModule } from "@core/odk/odk.module";
 import { CsrfModule } from "@core/csrf/csrf.module";
 import { AuthModule } from "@features/auth/auth.module";
+import { LinkLiveModule } from "@core/linklive/linklive.module";
 import { ServeStaticModule } from "@nestjs/serve-static";
 import { LoggerModule } from "@core/logger/logger.module";
 import { AppCacheModule } from "@core/cache/cache.module";
@@ -14,9 +14,11 @@ import { AppConfigModule } from "@config/app-config.module";
 import { CookiesModule } from "@core/cookies/cookies.module";
 import { SessionModule } from "@core/session/session.module";
 import { DatabaseModule } from "@core/database/database.module";
-import { ResponsesModule } from "@core/responses/responses.module";
 import { PasswordsModule } from "@core/passwords/passwords.module";
 import { MeasuresModule } from "@features/measures/measures.module";
+import { SurveysModule } from "@features/surveys/surveys.module";
+import { AnalysesModule } from "@features/analyses/analyses.module";
+import { NetAllyModule } from "@features/netally/netally.module";
 import { ExceptionsModule } from "@core/exceptions/exceptions.module";
 import { ValidatorsModule } from "@core/validators/validators.module";
 
@@ -30,7 +32,6 @@ import { ValidatorsModule } from "@core/validators/validators.module";
     AppConfigModule,
     LoggerModule,
     ExceptionsModule,
-    ResponsesModule,
     AppCacheModule,
     SessionModule,
     CookiesModule,
@@ -38,12 +39,15 @@ import { ValidatorsModule } from "@core/validators/validators.module";
     PasswordsModule,
     DatabaseModule,
     ValidatorsModule,
-    OdkModule,
+    LinkLiveModule,
 
     // Feature Modules
     AuthModule,
     UsersModule,
     MeasuresModule,
+    SurveysModule,
+    AnalysesModule,
+    NetAllyModule,
   ],
   controllers: [],
   providers: [],

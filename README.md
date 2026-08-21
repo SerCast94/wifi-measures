@@ -1,26 +1,10 @@
 # WiFi Measures
 
-Proyecto para gestionar auditorías Wi‑Fi obtenidas desde Link‑Live (NetAlly).
-
-Instrucciones rápidas:
-
-1. Crear un entorno virtual con Python 3.12
-2. Instalar dependencias:
-
-```bash
-pip install -r requirements.txt
-```
-
-3. Ejecutar la aplicación:
-
-```bash
-uvicorn main:app --reload
-```
-# Plantilla Monorepo para aplicaciones web con NestJS, React+Vite+Shadcn/ui y TypeScript
+Aplicación para gestionar medidas y auditorías Wi‑Fi obtenidas desde Link‑Live (NetAlly).
 
 ## Descripción
 
-Esta plantilla proporciona una estructura básica para desarrollar aplicaciones web utilizando NestJS en el backend y React con Vite en el frontend. Incluye configuraciones y ejemplos para facilitar el desarrollo y la integración de componentes.
+Aplicación web construida con NestJS en el backend y React (Vite + Shadcn/ui + TypeScript) en el frontend, organizada como monorepo npm. Permite sincronizar y consultar resultados de Link‑Live, gestionar áreas y unidades NetAlly, visualizar mapas de calor de señal y descargar archivos subidos.
 
 ## Características
 

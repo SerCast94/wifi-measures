@@ -41,9 +41,14 @@ services:
       SECRET_KEY: "${SECRET_KEY:-please-change-this}"
       LINKLIVE_CLIENT_ID: "${LINKLIVE_CLIENT_ID:-}"
       LINKLIVE_CLIENT_SECRET: "${LINKLIVE_CLIENT_SECRET:-}"
-      LINKLIVE_BASE_URL: "${LINKLIVE_BASE_URL:-https://api.link-live.com}"
+      LINKLIVE_BASE_URL: "${LINKLIVE_BASE_URL:-https://link-live.com}"
+      LINKLIVE_AUTH_URL: "${LINKLIVE_AUTH_URL:-https://id.link-live.com}"
+      LINKLIVE_USERNAME: "${LINKLIVE_USERNAME:-}"
+      LINKLIVE_PASSWORD: "${LINKLIVE_PASSWORD:-}"
+      LINKLIVE_APP_ID: "${LINKLIVE_APP_ID:-}"
+      LINKLIVE_ORG_ID: "${LINKLIVE_ORG_ID:-}"
     ports:
-      - "${APP_EXTERNAL_PORT:-8000}:8000"
+      - "${APP_EXTERNAL_PORT:-3001}:80"
     networks:
       - app-network
 

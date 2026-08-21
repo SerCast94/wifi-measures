@@ -5,14 +5,12 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["postgresqlExtensions"]
+  provider = "prisma-client-js"
 }
 
 datasource db {
-  provider   = "postgresql"
-  url        = env("DATABASE_URL")
-  extensions = [postgis]
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model Seeder {
@@ -22,6 +20,157 @@ model Seeder {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("seeders")
+}
+
+model Medida {
+  id           String   @id @default(uuid())
+  idLinkLive   String   @unique
+  name         String?
+  fechaHora    DateTime?
+  lat          Float?
+  lon          Float?
+  areaGeogr    String?
+  provincia    String?
+  emisiones    String?
+  ptoMedida    String?
+  nMedida      Int      @default(0)
+  azimut       Int      @default(0)
+  resultType   String?
+  unitName     String?
+  unitMac      String?
+  unitType     String?
+  profileName  String?
+  overallColor String?
+  labels       String[]
+  raw          Json?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("medidas")
+}
+
+model AreaPlan {
+  id        Int      @id @default(autoincrement())
+  areaId    Int      @unique
+  name      String
+  image     String
+  width     Int
+  height    Int
+  positions Json?
+  heatmap   Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("area_plans")
+}
+
+model LinkLiveSurvey {
+  id                    Int                 @id @default(autoincrement())
+  idLinkLive            String              @unique
+  name                  String?
+  surveyName            String?
+  surveyDescription     String?
+  surveyMode            String?
+  surveyPointCount      Int                 @default(0)
+  surveyBluetooth       Boolean             @default(false)
+  surveyActive1x1       Boolean             @default(false)
+  ssid1x1               String?
+  unitId                String?
+  unitName              String?
+  unitMac               String?
+  unitSerial            String?
+  unitType              String?
+  unitHardware          String?
+  status                String?
+  fileType              String?
+  floorPlanFilename     String?
+  floorPlanWidth        Int                 @default(0)
+  floorPlanHeight       Int                 @default(0)
+  floorPlanScalePpf     Float               @default(0)
+  floorPlanScaledWidth  Int                 @default(0)
+  floorPlanScaledHeight Int                 @default(0)
+  analysisGuid          String?
+  surveyStartTime       DateTime?
+  image                 String?
+  points                LinkLiveSurveyPoint[]
+  createdAt             DateTime            @default(now()) @map("created_at")
+  updatedAt             DateTime            @updatedAt @map("updated_at")
+
+  @@map("linklive_surveys")
+}
+
+model LinkLiveSurveyPoint {
+  id        Int             @id @default(autoincrement())
+  surveyId  Int
+  metric    String
+  pointIdx  Int             @default(0)
+  x         Float
+  y         Float
+  value     Float?
+  time      String?
+  survey    LinkLiveSurvey  @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+
+  @@index([surveyId])
+  @@map("linklive_survey_points")
+}
+
+model LinkLiveAnalysis {
+  id                   Int                     @id @default(autoincrement())
+  idLinkLive           String                  @unique
+  guid                 String?
+  analysisGuid         String?
+  analysisType         String?
+  name                 String?
+  status               String?
+  startTime            DateTime?
+  endTime              DateTime?
+  fileName             String?
+  unitId               String?
+  unitName             String?
+  unitType             String?
+  unitHardware         String?
+  apsCount             Int                     @default(0)
+  bssidsCount          Int                     @default(0)
+  ssidsCount           Int                     @default(0)
+  clientsCount         Int                     @default(0)
+  channelsCount        Int                     @default(0)
+  probingClientsCount  Int                     @default(0)
+  bluetoothCount       Int                     @default(0)
+  href                 String?
+  raw                  Json?
+  hosts                LinkLiveAnalysisHost[]
+  createdAt            DateTime                @default(now()) @map("created_at")
+  updatedAt            DateTime                @default(now()) @updatedAt @map("updated_at")
+
+  @@map("linklive_analyses")
+}
+
+model LinkLiveAnalysisHost {
+  id           Int               @id @default(autoincrement())
+  analysisId   Int
+  hostType     String
+  hostKey      String
+  name         String?
+  mac          String?
+  channel      String?
+  band         String?
+  signal       Float?
+  snr          Float?
+  ssid         String?
+  securityType String?
+  protocol     String?
+  inactive     Boolean           @default(false)
+  lastSeen     DateTime?
+  counts       Json?
+  wifiItem     Json?
+  raw          Json?
+  analysis     LinkLiveAnalysis  @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime          @default(now()) @updatedAt @map("updated_at")
+
+  @@unique([analysisId, hostType, hostKey])
+  @@index([analysisId])
+  @@map("linklive_analysis_hosts")
 }
 
 model User {
@@ -94,129 +243,3 @@ model RolePermission {
   @@map("role_permissions")
 }
 
-model MedidaTdt {
-  id        Int                                  @id @default(autoincrement())
-  idArea    BigInt                               @map("id_area") @db.BigInt
-  geom      Unsupported("geometry(Point, 4326)")
-  areaGeogr String                               @map("area_geogr") @db.VarChar(100)
-  provincia String                               @map("provincia") @db.VarChar(20)
-  emisiones String                               @map("emisiones") @db.VarChar(1)
-  ptoMedida String                               @map("pto_medida") @db.VarChar(3)
-  nMedida   Int                                  @map("n_medida")
-  fechaHora String                               @map("fecha_hora") @db.VarChar(50)
-  azimut    Int
-
-  // Canal C1
-  c1Servici String?  @map("c1_servici") @db.VarChar(4)
-  c1        Int?     @map("c1")
-  c1Mhz     Decimal? @map("c1_mhz") @db.Decimal(20, 0)
-  nivelC1   Decimal? @map("nivel_c1") @db.Decimal(20, 2)
-  cNC1      Decimal? @map("c_n_c1") @db.Decimal(20, 2)
-  cberC1    Decimal? @map("cber_c1") @db.Decimal(20, 6)
-  vberC1    Decimal? @map("vber_c1") @db.Decimal(20, 8)
-  merC1     Decimal? @map("mer_c1") @db.Decimal(20, 2)
-  okC1      String?  @map("ok_c1") @db.VarChar(5)
-
-  // Canal C2
-  c2Servici String?  @map("c2_servici") @db.VarChar(4)
-  c2        Int?     @map("c2")
-  c2Mhz     Decimal? @map("c2_mhz") @db.Decimal(20, 0)
-  nivelC2   Decimal? @map("nivel_c2") @db.Decimal(20, 2)
-  cNC2      Decimal? @map("c_n_c2") @db.Decimal(20, 2)
-  cberC2    Decimal? @map("cber_c2") @db.Decimal(20, 6)
-  vberC2    Decimal? @map("vber_c2") @db.Decimal(20, 8)
-  merC2     Decimal? @map("mer_c2") @db.Decimal(20, 2)
-  okC2      String?  @map("ok_c2") @db.VarChar(5)
-
-  // Canal C3
-  c3Servici String?  @map("c3_servici") @db.VarChar(4)
-  c3        Int?     @map("c3")
-  c3Mhz     Decimal? @map("c3_mhz") @db.Decimal(20, 0)
-  nivelC3   Decimal? @map("nivel_c3") @db.Decimal(20, 2)
-  cNC3      Decimal? @map("c_n_c3") @db.Decimal(20, 2)
-  cberC3    Decimal? @map("cber_c3") @db.Decimal(20, 6)
-  vberC3    Decimal? @map("vber_c3") @db.Decimal(20, 8)
-  merC3     Decimal? @map("mer_c3") @db.Decimal(20, 2)
-  okC3      String?  @map("ok_c3") @db.VarChar(5)
-
-  // Canal C4
-  c4Servici String?  @map("c4_servici") @db.VarChar(4)
-  c4        Int?     @map("c4")
-  c4Mhz     Decimal? @map("c4_mhz") @db.Decimal(20, 0)
-  nivelC4   Decimal? @map("nivel_c4") @db.Decimal(20, 2)
-  cNC4      Decimal? @map("c_n_c4") @db.Decimal(20, 2)
-  cberC4    Decimal? @map("cber_c4") @db.Decimal(20, 6)
-  vberC4    Decimal? @map("vber_c4") @db.Decimal(20, 8)
-  merC4     Decimal? @map("mer_c4") @db.Decimal(20, 2)
-  okC4      String?  @map("ok_c4") @db.VarChar(5)
-
-  // Canal C5
-  c5Servici String?  @map("c5_servici") @db.VarChar(4)
-  c5        Int?     @map("c5")
-  c5Mhz     Decimal? @map("c5_mhz") @db.Decimal(20, 0)
-  nivelC5   Decimal? @map("nivel_c5") @db.Decimal(20, 2)
-  cNC5      Decimal? @map("c_n_c5") @db.Decimal(20, 2)
-  cberC5    Decimal? @map("cber_c5") @db.Decimal(20, 6)
-  vberC5    Decimal? @map("vber_c5") @db.Decimal(20, 8)
-  merC5     Decimal? @map("mer_c5") @db.Decimal(20, 2)
-  okC5      String?  @map("ok_c5") @db.VarChar(5)
-
-  // Canal C6
-  c6Servici String?  @map("c6_servici") @db.VarChar(4)
-  c6        Int?     @map("c6")
-  c6Mhz     Decimal? @map("c6_mhz") @db.Decimal(20, 0)
-  nivelC6   Decimal? @map("nivel_c6") @db.Decimal(20, 2)
-  cNC6      Decimal? @map("c_n_c6") @db.Decimal(20, 2)
-  cberC6    Decimal? @map("cber_c6") @db.Decimal(20, 6)
-  vberC6    Decimal? @map("vber_c6") @db.Decimal(20, 8)
-  merC6     Decimal? @map("mer_c6") @db.Decimal(20, 2)
-  okC6      String?  @map("ok_c6") @db.VarChar(5)
-
-  // Canal C7
-  c7Servici String?  @map("c7_servici") @db.VarChar(4)
-  c7        Int?     @map("c7")
-  c7Mhz     Decimal? @map("c7_mhz") @db.Decimal(20, 0)
-  nivelC7   Decimal? @map("nivel_c7") @db.Decimal(20, 2)
-  cNC7      Decimal? @map("c_n_c7") @db.Decimal(20, 2)
-  cberC7    Decimal? @map("cber_c7") @db.Decimal(20, 6)
-  vberC7    Decimal? @map("vber_c7") @db.Decimal(20, 8)
-  merC7     Decimal? @map("mer_c7") @db.Decimal(20, 2)
-  okC7      String?  @map("ok_c7") @db.VarChar(5)
-
-  // Canal C8
-  c8Servici String?  @map("c8_servici") @db.VarChar(4)
-  c8        Int?     @map("c8")
-  c8Mhz     Decimal? @map("c8_mhz") @db.Decimal(20, 0)
-  nivelC8   Decimal? @map("nivel_c8") @db.Decimal(20, 2)
-  cNC8      Decimal? @map("c_n_c8") @db.Decimal(20, 2)
-  cberC8    Decimal? @map("cber_c8") @db.Decimal(20, 6)
-  vberC8    Decimal? @map("vber_c8") @db.Decimal(20, 8)
-  merC8     Decimal? @map("mer_c8") @db.Decimal(20, 2)
-  okC8      String?  @map("ok_c8") @db.VarChar(5)
-
-  monitorizacion String? @map("monitorizacion") @db.VarChar(1)
-  obsGenerales   String? @map("obs_generales") @db.Text
-  idFormulario   String  @map("id_formulario") @db.VarChar(80)
-  name           String? @map("name") @db.Text
-  firNombre      String? @map("fir_nombre") @db.VarChar(255)
-  firDni         String? @map("fir_dni") @db.VarChar(255)
-
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  @@map("medidas_tdt")
-}
-
-model MonitoringCenter {
-
-}
-
-model MonitoringCenterMeasure {
-  id           String   @id @default(uuid())
-  name         String
-  value        Float
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  userId       String?
-  user         User?    @relation(fields: [userId], references: [id])
-}

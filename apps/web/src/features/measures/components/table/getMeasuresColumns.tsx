@@ -1,33 +1,27 @@
 import { type ColumnDef, type Row } from "@tanstack/react-table";
+import { Link } from "react-router";
 
-import { ChannelsPopover } from "../ChannelsPopover";
 import type { MeasureModel } from "../../models/measure.model";
-import { DownloadMeasureImagesBtn } from "../actions-buttons/DownloadMeasureImagesBtn";
 import { GoToMeasureBtn } from "../actions-buttons/GoToMeasureBtn";
+
+const NETALLY_COLORS: Record<string, string> = {
+  red: "bg-red-500",
+  yellow: "bg-yellow-400",
+  green: "bg-green-500",
+};
+
+const getRaw = (measure: MeasureModel): Record<string, unknown> | null =>
+  measure.raw ? (measure.raw as Record<string, unknown>) : null;
+
+const formatNumber = (value: unknown): string => {
+  if (typeof value === "number") return value.toFixed(1);
+  if (value === null || value === undefined || value === "--" || value === "")
+    return "—";
+  return `${value}`;
+};
 
 export const getMeasuresColumns = (): ColumnDef<MeasureModel>[] => {
   const columns = [
-    {
-      accessorKey: "metadata.ID_AREA",
-      header: "ID AREA",
-      cell: ({ row }: { row: Row<MeasureModel> }) => (
-        <div className="w-[75px]">{row.original.metadata["ID_AREA"]}</div>
-      ),
-    },
-    {
-      accessorKey: "metadata.AREA_GEOGR",
-      header: "AREA GEOGR",
-      cell: ({ row }: { row: Row<MeasureModel> }) => (
-        <div className="w-[150px]">{row.original.metadata["AREA_GEOGR"]}</div>
-      ),
-    },
-    {
-      accessorKey: "metadata.PROVINCIA",
-      header: "PROVINCIA",
-      cell: ({ row }: { row: Row<MeasureModel> }) => (
-        <div className="w-[100px]">{row.original.metadata["PROVINCIA"]}</div>
-      ),
-    },
     {
       accessorKey: "datetime",
       header: "FECHA Y HORA",
@@ -44,63 +38,117 @@ export const getMeasuresColumns = (): ColumnDef<MeasureModel>[] => {
       ),
     },
     {
-      accessorKey: "metadata.EMISIONES",
-      header: "EMISIONES",
+      accessorKey: "metadata.AREA_GEOGR",
+      header: "ÁREA",
+      cell: ({ row }: { row: Row<MeasureModel> }) => {
+        const areaId = row.original.metadata["ID_AREA"];
+        return (
+          <div className="w-[200px]">
+            {areaId ? (
+              <Link
+                to={`/areas/${areaId}`}
+                className="text-primary hover:underline"
+              >
+                {row.original.metadata["AREA_GEOGR"]}
+              </Link>
+            ) : (
+              row.original.metadata["AREA_GEOGR"]
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "name",
+      header: "PERFIL",
       cell: ({ row }: { row: Row<MeasureModel> }) => (
-        <div className="w-[100px]">
+        <div className="w-[100px]">{row.original.name}</div>
+      ),
+    },
+    {
+      id: "unidad",
+      accessorFn: (row: MeasureModel) =>
+        `${(row.raw as Record<string, unknown>)?.unit_name ?? ""}`,
+      header: "UNIDAD",
+      cell: ({ row }: { row: Row<MeasureModel> }) => {
+        const raw = getRaw(row.original);
+        const unitName = `${raw?.unit_name ?? ""}`;
+        return (
+          <div className="w-[180px] text-muted-foreground">
+            {unitName || "—"}
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "metadata.EMISIONES",
+      header: "TIPO",
+      cell: ({ row }: { row: Row<MeasureModel> }) => (
+        <div className="w-[90px]">
           <center>{row.original.metadata["EMISIONES"]}</center>
         </div>
       ),
     },
     {
-      accessorKey: "metadata.PTO_MEDIDA",
-      header: "PTO MEDIDA",
+      accessorKey: "raw.linkSignalLevelMean",
+      header: "SEÑAL (dBm)",
       cell: ({ row }: { row: Row<MeasureModel> }) => (
-        <div className="w-[100px]">
-          <center>{row.original.metadata["PTO_MEDIDA"]}</center>
+        <div className="w-[90px]">
+          <center>{formatNumber(getRaw(row.original)?.linkSignalLevelMean)}</center>
         </div>
       ),
     },
     {
-      accessorKey: "metadata.N_MEDIDA",
-      header: "N MEDIDA",
+      accessorKey: "raw.linkSNRMean",
+      header: "SNR (dB)",
       cell: ({ row }: { row: Row<MeasureModel> }) => (
-        <div className="w-[75px]">
-          <center>{row.original.metadata["N_MEDIDA"]}</center>
+        <div className="w-[80px]">
+          <center>{formatNumber(getRaw(row.original)?.linkSNRMean)}</center>
         </div>
       ),
     },
     {
-      accessorKey: "metadata.AZIMUT",
-      header: "AZIMUT",
-      cell: ({ row }: { row: Row<MeasureModel> }) => (
-        <div className="w-[75px]">
-          <center>{row.original.metadata["AZIMUT"]}</center>
-        </div>
-      ),
+      accessorKey: "raw.overallColor",
+      header: "ESTADO",
+      cell: ({ row }: { row: Row<MeasureModel> }) => {
+        const raw = getRaw(row.original);
+        if (!raw) return null;
+        const color = `${raw.overallColor ?? ""}`;
+        return (
+          <div className="w-[100px]">
+            <div className="flex items-center justify-center gap-1">
+              <span
+                className={`inline-block w-2.5 h-2.5 rounded-full ${
+                  NETALLY_COLORS[color] ?? "bg-gray-300"
+                }`}
+              />
+              <span className="capitalize">{color || "—"}</span>
+            </div>
+          </div>
+        );
+      },
     },
     {
-      accessorKey: "Channels",
-      header: "CANALES",
-      cell: ({ row }: { row: Row<MeasureModel> }) => (
-        <pre className="w-[100px]">
-          {
-            row.original.channels && (
-              <ChannelsPopover channels={row.original.channels} />
-            ) /* Si no hay canales, no renderiza nada */
-          }
-        </pre>
-      ),
+      accessorKey: "raw.linkFailureReasons",
+      header: "MOTIVO",
+      cell: ({ row }: { row: Row<MeasureModel> }) => {
+        const raw = getRaw(row.original);
+        const failures = [
+          ...((raw?.linkFailureReasons ?? []) as unknown[]),
+          ...((raw?.failureReasons ?? []) as unknown[]),
+        ];
+        return (
+          <div className="w-[200px] text-xs text-red-600">
+            {failures.length > 0 ? failures.join(" · ") : "—"}
+          </div>
+        );
+      },
     },
     {
       id: "actions",
       header: "ACCIONES",
       cell: ({ row }: { row: Row<MeasureModel> }) => (
         <div className="flex my-1 space-x-2">
-          <DownloadMeasureImagesBtn
-            className="hidden text-white bg-green-800 sm:flex"
-            measure={row.original}
-          />
           <GoToMeasureBtn
             className="hidden sm:flex"
             measureId={`${row.original.id}`}

@@ -21,6 +21,7 @@ export class MeasureModel {
   dniTechnician?: string;
   responsible?: string;
   dniResponsible?: string;
+  raw?: unknown;
 
   constructor(
     id: number,
@@ -33,7 +34,8 @@ export class MeasureModel {
     channels: MeasureChannels,
     observations?: string,
     technician?: string,
-    dniTechnician?: string
+    dniTechnician?: string,
+    raw?: unknown
   ) {
     this.id = id;
     this.name = name;
@@ -49,6 +51,7 @@ export class MeasureModel {
     this.dniTechnician = dniTechnician;
     this.responsible = RESPONSIBLE_NAME;
     this.dniResponsible = DNI_RESPONSIBLE;
+    this.raw = raw;
   }
 
   static fromApiMeasure(data: ApiMeasure): MeasureModel {
@@ -160,7 +163,8 @@ export class MeasureModel {
       },
       data.obsGenerales,
       data.firNombre,
-      data.firDni
+      data.firDni,
+      data.raw
     );
   }
 

@@ -109,6 +109,7 @@ async function bootstrap() {
     }
 
     // Seed Database
+    await app.init();
     await app.get(SeedService).seed();
 
     // Start the app

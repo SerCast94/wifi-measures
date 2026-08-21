@@ -1,11 +1,16 @@
 import { RefreshCwIcon } from "lucide-react";
 
 import { LoadingButton } from "@/core/atomic-components/loading-button";
+import { useHasPermission } from "@/core/hooks/useHasPermission";
+import { SYNC_MEASURES } from "@/config/constants";
 import { useSyncMeasures } from "../hooks/use-sync-measures";
 import { toast } from "sonner";
 
 export const SyncMeasuresBtn = () => {
+  const canSync = useHasPermission(SYNC_MEASURES);
   const { mutate: syncMeasures, isPending: isCreating } = useSyncMeasures();
+
+  if (!canSync) return null;
 
   const handleSyncMeasures = async () => {
     syncMeasures(undefined, {

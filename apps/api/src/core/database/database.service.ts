@@ -1,4 +1,9 @@
-import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from "@nestjs/common";
+import {
+  Injectable,
+  OnModuleInit,
+  OnModuleDestroy,
+  Logger,
+} from "@nestjs/common";
 
 import { AppConfigService } from "@config/app-config.service";
 
@@ -11,9 +16,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit() {
     try {
-      // require at runtime so missing generated client doesn't break startup
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { PrismaClient } = require("@prisma/client");
+      // dynamic import at runtime so missing generated client doesn't break startup
+      const { PrismaClient } = await import("@prisma/client");
       this.client = new PrismaClient();
       await this.client.$connect();
       this.logger.log("Connected to database via Prisma client");

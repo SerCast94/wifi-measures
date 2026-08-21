@@ -1,4 +1,4 @@
-@tailwind base;
+﻿@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
@@ -185,75 +185,4 @@
   100% {
     transform: rotate(360deg);
   }
-}
-
-/* Leaflet */
-.marker-cluster-small {
-  background-color: rgba(66, 134, 244, 0.6) !important;
-  color: white;
-  border-radius: 50%;
-  font-size: 14px;
-  font-weight: bold;
-  line-height: 35px;
-}
-.marker-cluster-medium {
-  background-color: rgba(44, 76, 206, 0.7) !important;
-  color: white;
-  border-radius: 50%;
-  font-size: 16px;
-  font-weight: bold;
-  line-height: 40px;
-}
-.marker-cluster-large {
-  background-color: rgba(25, 53, 165, 0.9) !important;
-  color: white;
-  border-radius: 50%;
-  font-size: 18px;
-  font-weight: bold;
-  line-height: 45px;
-}
-
-.leaflet-control-zoom-in,
-.leaflet-control-zoom-out,
-.map-leaflet-control {
-  background: #003e80 !important;
-  color: white !important;
-  cursor: pointer !important;
-  z-index: 1000 !important;
-  box-shadow: 0 0 8px rgba(102, 175, 233, 0.6) !important;
-  transition: background 0.3s !important;
-}
-
-.leaflet-control-zoom-in:hover,
-.leaflet-control-zoom-out:hover,
-.map-leaflet-control:hover {
-  background: #003e80 !important;
-}
-
-.map-leaflet-control {
-  @apply border-[0.5px] border-gray-400;
-}
-
-.leaflet-popup-content-wrapper {
-  background-color: var(--background) !important;
-  color: var(--background-foreground) !important;
-  overflow: hidden !important;
-  box-shadow: none !important;
-}
-
-.leaflet-popup-content {
-  background-color: var(--background) !important;
-  color: var(--background-foreground) !important;
-  padding: 0rem !important;
-  margin: 0rem !important;
-}
-
-.leaflet-popup-tip {
-  background: var(--bg) !important;
-}
-
-.leaflet-tooltip {
-  background: rgba(252, 255, 193, 0.5) !important; /* Ajusta la transparencia */
-  border: 1px solid rgba(0, 0, 0, 0.5);
-  color: black !important;
 }

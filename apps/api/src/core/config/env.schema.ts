@@ -74,9 +74,12 @@ export const envSchema = z.object({
   SESSION_COOKIE_NAME: z.string().default("SESSION_ID"),
   CSRF_SECRET: z.string().min(32),
   CSRF_COOKIE_NAME: z.string().default("CSRF_TOKEN"),
-  ODK_API_URL: z.string().min(1),
-  ODK_PROJECT_ID: z.string().min(1),
-  ODK_FORM_ID: z.string().min(1),
+  LINKLIVE_BASE_URL: z.string().min(1).default("https://link-live.com"),
+  LINKLIVE_AUTH_URL: z.string().min(1).default("https://id.link-live.com"),
+  LINKLIVE_USERNAME: cleanEmptyString(z.string().optional().default("")),
+  LINKLIVE_PASSWORD: cleanEmptyString(z.string().optional().default("")),
+  LINKLIVE_APP_ID: cleanEmptyString(z.string().optional().default("")),
+  LINKLIVE_ORG_ID: cleanEmptyString(z.string().optional().default("")),
 });
 
 export const readableConfigSchema = envSchema.transform((env) => ({
@@ -99,9 +102,12 @@ export const readableConfigSchema = envSchema.transform((env) => ({
   sessionCookieName: env.SESSION_COOKIE_NAME,
   csrfSecret: env.CSRF_SECRET,
   csrfCookieName: env.CSRF_COOKIE_NAME,
-  odkApiUrl: env.ODK_API_URL,
-  odkProjectId: env.ODK_PROJECT_ID,
-  odkFormId: env.ODK_FORM_ID,
+  linkLiveBaseUrl: env.LINKLIVE_BASE_URL,
+  linkLiveAuthUrl: env.LINKLIVE_AUTH_URL,
+  linkLiveUsername: env.LINKLIVE_USERNAME,
+  linkLivePassword: env.LINKLIVE_PASSWORD,
+  linkLiveAppId: env.LINKLIVE_APP_ID,
+  linkLiveOrgId: env.LINKLIVE_ORG_ID,
 }));
 
 export type ReadableEnvVariables = z.infer<typeof readableConfigSchema>;

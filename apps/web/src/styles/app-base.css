@@ -194,3 +194,30 @@ input:-webkit-autofill:active {
 :focus {
   outline-color: transparent;
 }
+
+/**
+ * Print styles: oculta la navegación al imprimir o exportar a PDF
+ */
+@media print {
+  [data-sidebar='sidebar'],
+  header,
+  .no-print {
+    display: none !important;
+  }
+
+  main,
+  #main-layout {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .avoid-break {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .print-break {
+    break-before: page;
+    page-break-before: always;
+  }
+}
