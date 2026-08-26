@@ -8,5 +8,6 @@ import { MeasuresModule } from "@features/measures/measures.module";
   imports: [MeasuresModule],
   providers: [SurveysService],
   controllers: [SurveysController],
+  exports: [SurveysService],
 })
 export class SurveysModule {}

@@ -37,9 +37,11 @@ import type { AnalysisHost } from "../../types/analysis.types";
 interface HostsTableProps {
   hostType: string;
   hosts: AnalysisHost[];
+  /** anula la paginación del store (informe: mostrar todos) */
+  pageSize?: number;
 }
 
-export const HostsTable = ({ hostType, hosts }: HostsTableProps) => {
+export const HostsTable = ({ hostType, hosts, pageSize: pageSizeProp }: HostsTableProps) => {
   const [sorting, setSorting] = useState<SortingState>([]);
 
   const pagination = useTableHostsStore((state) => state.pagination);
@@ -79,7 +81,9 @@ export const HostsTable = ({ hostType, hosts }: HostsTableProps) => {
     globalFilterFn: "includesString",
     state: {
       sorting,
-      pagination,
+      pagination: pageSizeProp
+        ? { pageIndex: 0, pageSize: pageSizeProp }
+        : pagination,
       globalFilter,
       columnFilters,
       expanded: expandedRows,
@@ -213,6 +217,7 @@ export const HostsTable = ({ hostType, hosts }: HostsTableProps) => {
           </TableBody>
         </Table>
       </div>
+      {!pageSizeProp ? (
       <div className="flex flex-col items-center justify-between gap-4 py-4 space-x-2 sm:flex-row sm:justify-between">
         <PaginationStats
           rowsCount={filteredCount}
@@ -234,6 +239,7 @@ export const HostsTable = ({ hostType, hosts }: HostsTableProps) => {
           />
         </div>
       </div>
+      ) : null}
     </>
   );
 };

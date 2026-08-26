@@ -1,7 +1,7 @@
-import { Radar, ArrowUpRight } from "lucide-react";
+import { Radar, LogInIcon } from "lucide-react";
 import { Link } from "react-router";
-
 import { Badge } from "@/core/atomic-components/badge";
+import { Button } from "@/core/atomic-components/button";
 import { Card, CardContent } from "@/core/atomic-components/card";
 import {
   Table,
@@ -35,7 +35,7 @@ const SurveysPage = () => {
       <div className="flex flex-col items-center justify-between gap-2 mt-2 mb-4 sm:flex-row">
         <h1 className="flex gap-4 px-2 mb-2 text-lg font-bold sm:items-center sm:text-2xl">
           <Radar className="w-6 h-6" />
-          Encuestas Wi‑Fi (Link-Live)
+          Mapas de calor Wi‑Fi (Link-Live)
         </h1>
         <SyncSurveysBtn />
       </div>
@@ -44,12 +44,12 @@ const SurveysPage = () => {
         <CardContent className="mt-4">
           {isLoading ? (
             <p className="py-8 text-sm text-muted-foreground text-center">
-              Cargando encuestas…
+              Cargando mapas de calor…
             </p>
           ) : isError ? (
             <div className="py-8 text-center">
               <p className="text-sm text-muted-foreground">
-                Error al cargar las encuestas.
+                Error al cargar los mapas de calor.
               </p>
               <button
                 type="button"
@@ -61,14 +61,14 @@ const SurveysPage = () => {
             </div>
           ) : !surveys || surveys.length === 0 ? (
             <p className="py-8 text-sm text-muted-foreground text-center">
-              No hay encuestas. Pulsa «Sincronizar Encuestas» para importarlas
+              No hay mapas de calor. Pulsa «Sincronizar Mapas» para importarlos
               desde Link-Live.
             </p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Encuesta</TableHead>
+                  <TableHead>Mapa de calor</TableHead>
                   <TableHead>Fecha</TableHead>
                   <TableHead className="text-center">Puntos</TableHead>
                   <TableHead>Modo</TableHead>
@@ -103,11 +103,14 @@ const SurveysPage = () => {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Link
-                        to={`/surveys/${survey.id}`}
-                        className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-                      >
-                        Ver <ArrowUpRight className="w-3.5 h-3.5" />
+                      <Link to={`/surveys/${survey.id}`}>
+                        <Button
+                          size="icon"
+                          title="Ir al mapa de calor"
+                          className="bg-yellow-500 text-foreground hover:bg-yellow-500/90"
+                        >
+                          <LogInIcon className="w-4 h-4" />
+                        </Button>
                       </Link>
                     </TableCell>
                   </TableRow>

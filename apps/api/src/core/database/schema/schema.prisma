@@ -43,10 +43,270 @@ model Medida {
   overallColor String?
   labels       String[]
   raw          Json?
+  auditLinks   AuditMeasure[]
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   @@map("medidas")
+}
+
+model AuditProfile {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  auditType   String   @default("GENERAL")
+  description String?
+  thresholds   Json
+  isDefault    Boolean  @default(false) @map("is_default")
+  checklistExtras Json? @map("checklist_extras")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  audits Audit[]
+
+  @@map("audit_profiles")
+}
+
+model Audit {
+  id           String   @id @default(uuid())
+  code         String?
+  name         String
+  client       String?
+  project      String?
+  location     String?
+  address      String?
+  building     String?
+  technician   String?
+  status       String   @default("BORRADOR")
+  description  String?
+  objective    String?
+  scope        String?
+  methodology  String?
+  observations String?
+  auditDate    DateTime?
+  startDate    DateTime? @map("start_date")
+  endDate      DateTime? @map("end_date")
+  profileId    String?   @map("profile_id")
+  areaKeys     String[]  @map("area_keys")
+  ssidFilter   String?   @map("ssid_filter")
+  lastSyncAt   DateTime? @map("last_sync_at")
+  anexos       Json?
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  profile         AuditProfile?          @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  floors          AuditFloor[]
+  measures        AuditMeasure[]
+  surveys         AuditSurvey[]
+  analyses        AuditAnalysis[]
+  tests           AuditTest[]
+  evaluations     AuditEvaluation[]
+  issues          AuditIssue[]
+  recommendations AuditRecommendation[]
+  conclusion      AuditConclusion?
+  reports         AuditReport[]
+  syncLogs        AuditSyncLog[]
+
+  @@index([status])
+  @@map("audits")
+}
+
+model AuditFloor {
+  id      Int    @id @default(autoincrement())
+  auditId String @map("audit_id")
+  name    String
+  order   Int    @default(0)
+
+  audit   Audit          @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  surveys AuditSurvey[]
+  measures AuditMeasure[]
+
+  @@index([auditId])
+  @@map("audit_floors")
+}
+
+model AuditMeasure {
+  auditId   String  @map("audit_id")
+  measureId String  @map("measure_id")
+  floorId   Int?    @map("floor_id")
+  label     String?
+
+  audit   Audit       @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  measure Medida      @relation(fields: [measureId], references: [id], onDelete: Cascade)
+  floor   AuditFloor? @relation(fields: [floorId], references: [id], onDelete: SetNull)
+
+  @@id([auditId, measureId])
+  @@index([measureId])
+  @@map("audit_measures")
+}
+
+model AuditSurvey {
+  auditId  String @map("audit_id")
+  surveyId Int    @map("survey_id")
+  floorId  Int?   @map("floor_id")
+
+  audit  Audit           @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  survey LinkLiveSurvey  @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  floor  AuditFloor?     @relation(fields: [floorId], references: [id], onDelete: SetNull)
+
+  @@id([auditId, surveyId])
+  @@index([surveyId])
+  @@map("audit_surveys")
+}
+
+model AuditAnalysis {
+  auditId    String @map("audit_id")
+  analysisId Int    @map("analysis_id")
+
+  audit    Audit            @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  analysis LinkLiveAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  @@id([auditId, analysisId])
+  @@index([analysisId])
+  @@map("audit_analyses")
+}
+
+model AuditTest {
+  id           String    @id @default(uuid())
+  auditId      String    @map("audit_id")
+  section      String
+  key          String
+  title        String
+  required     Boolean   @default(true)
+  status       String    @default("PENDIENTE")
+  resultStatus String?   @map("result_status")
+  sourceType   String?   @map("source_type")
+  sourceIds    Json?     @map("source_ids")
+  notes        String?
+  completedAt  DateTime? @map("completed_at")
+  sortOrder    Int       @default(0) @map("sort_order")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  audit Audit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@unique([auditId, key])
+  @@index([auditId])
+  @@map("audit_tests")
+}
+
+model AuditEvaluation {
+  id            String   @id @default(uuid())
+  auditId       String   @map("audit_id")
+  category      String
+  metric        String
+  value         Float?
+  unit          String?
+  status        String
+  threshold     Json?
+  message       String?
+  sourceType    String?  @map("source_type")
+  sourceId      String?  @map("source_id")
+  sourceGuid    String?  @map("source_guid")
+  floorId       Int?     @map("floor_id")
+  locationLabel String?  @map("location_label")
+  batchId       String?  @map("batch_id")
+  runAt         DateTime @default(now()) @map("run_at")
+
+  audit Audit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@index([auditId])
+  @@index([auditId, category])
+  @@map("audit_evaluations")
+}
+
+model AuditIssue {
+  id                 String   @id @default(uuid())
+  auditId            String   @map("audit_id")
+  origin             String   @default("MANUAL")
+  state              String   @default("SUGERIDA")
+  type               String?
+  severity           String   @default("MEDIUM")
+  title              String
+  description        String?
+  locationLabel      String?  @map("location_label")
+  floorId            Int?     @map("floor_id")
+  metric             String?
+  value              Float?
+  unit               String?
+  threshold          Json?
+  evidence           Json?
+  photo              String?
+  recommendationText String?  @map("recommendation_text")
+  detectedAt         DateTime @default(now()) @map("detected_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  audit           Audit                 @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  recommendations AuditRecommendation[]
+
+  @@index([auditId])
+  @@map("audit_issues")
+}
+
+model AuditRecommendation {
+  id        String   @id @default(uuid())
+  auditId   String   @map("audit_id")
+  issueId   String?  @map("issue_id")
+  origin    String   @default("AUTO")
+  category  String   @default("INMEDIATA")
+  text      String
+  basis     Json?
+  accepted  Boolean?
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  audit Audit       @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  issue AuditIssue? @relation(fields: [issueId], references: [id], onDelete: SetNull)
+
+  @@index([auditId])
+  @@map("audit_recommendations")
+}
+
+model AuditConclusion {
+  id           String    @id @default(uuid())
+  auditId      String    @unique @map("audit_id")
+  draft        String?
+  finalText    String?   @map("final_text")
+  globalResult String?   @map("global_result")
+  generatedAt  DateTime? @map("generated_at")
+  editedAt     DateTime? @map("edited_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  audit Audit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@map("audit_conclusions")
+}
+
+model AuditReport {
+  id          String   @id @default(uuid())
+  auditId     String   @map("audit_id")
+  version     Int      @default(1)
+  config      Json?
+  generatedAt DateTime @default(now()) @map("generated_at")
+
+  audit Audit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@index([auditId])
+  @@map("audit_reports")
+}
+
+model AuditSyncLog {
+  id              String    @id @default(uuid())
+  auditId         String    @map("audit_id")
+  startedAt       DateTime  @default(now()) @map("started_at")
+  finishedAt      DateTime? @map("finished_at")
+  ok              Boolean?
+  createdMeasures Int       @default(0) @map("created_measures")
+  updatedMeasures Int       @default(0) @map("updated_measures")
+  createdSurveys  Int       @default(0) @map("created_surveys")
+  createdAnalyses Int       @default(0) @map("created_analyses")
+  duplicates      Int       @default(0)
+  errors          Json?
+
+  audit Audit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@index([auditId])
+  @@map("audit_sync_logs")
 }
 
 model AreaPlan {
@@ -93,6 +353,7 @@ model LinkLiveSurvey {
   surveyStartTime       DateTime?
   image                 String?
   points                LinkLiveSurveyPoint[]
+  auditLinks            AuditSurvey[]
   createdAt             DateTime            @default(now()) @map("created_at")
   updatedAt             DateTime            @updatedAt @map("updated_at")
 
@@ -139,6 +400,7 @@ model LinkLiveAnalysis {
   href                 String?
   raw                  Json?
   hosts                LinkLiveAnalysisHost[]
+  auditLinks           AuditAnalysis[]
   createdAt            DateTime                @default(now()) @map("created_at")
   updatedAt            DateTime                @default(now()) @updatedAt @map("updated_at")
 

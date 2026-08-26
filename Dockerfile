@@ -25,7 +25,12 @@ FROM node:20 AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 
-RUN apt-get update && apt-get install -y nginx && rm -rf /var/lib/apt/lists/*
+# nginx sirve el frontend; chromium habilita la exportación real a PDF
+RUN apt-get update && apt-get install -y nginx chromium && rm -rf /var/lib/apt/lists/* \
+	&& ln -sf /usr/bin/chromium /usr/bin/google-chrome || true
+
+ENV CHROMIUM_PATH=/usr/bin/chromium \
+	PUPPETEER_SKIP_DOWNLOAD=true
 
 COPY --from=build /app/apps/api/dist ./apps/api/dist
 COPY --from=build /app/apps/api/src/core/database/schema ./apps/api/src/core/database/schema

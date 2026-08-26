@@ -8,6 +8,8 @@ export const QUERY_KEYS = {
   surveys: "surveys",
   analyses: "analyses",
   netallyDashboard: "netally-dashboard",
+  audits: "audits",
+  auditProfiles: "audit-profiles",
 };
 
 // Permissions

@@ -1,8 +1,8 @@
 import { type ColumnDef } from "@tanstack/react-table";
-import { ArrowUpRight } from "lucide-react";
+import { LogInIcon } from "lucide-react";
 import { Link } from "react-router";
-
 import { Badge } from "@/core/atomic-components/badge";
+import { Button } from "@/core/atomic-components/button";
 import type { LinkLiveAnalysis } from "../../types/analysis.types";
 
 const formatDate = (value: string | null): string => {
@@ -123,11 +123,14 @@ export const getAnalysesColumns = (): ColumnDef<LinkLiveAnalysis>[] => [
     enableSorting: false,
     cell: ({ row }) => (
       <div className="text-right">
-        <Link
-          to={`/analyses/${row.original.id}`}
-          className="inline-flex items-center gap-1 text-sm text-primary hover:underline whitespace-nowrap"
-        >
-          Ver <ArrowUpRight className="w-3.5 h-3.5" />
+        <Link to={`/analyses/${row.original.id}`}>
+          <Button
+            size="icon"
+            title="Ir al análisis"
+            className="bg-yellow-500 text-foreground hover:bg-yellow-500/90"
+          >
+            <LogInIcon className="w-4 h-4" />
+          </Button>
         </Link>
       </div>
     ),

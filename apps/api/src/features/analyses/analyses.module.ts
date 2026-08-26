@@ -7,5 +7,6 @@ import { AnalysesController } from "./presentation/http/analyses.controller";
   imports: [],
   providers: [AnalysesService],
   controllers: [AnalysesController],
+  exports: [AnalysesService],
 })
 export class AnalysesModule {}

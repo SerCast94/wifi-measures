@@ -39,6 +39,7 @@
     "express-session": "^1.18.1",
     "helmet": "^8.1.0",
     "keyv": "^5.3.3",
+    "puppeteer-core": "^25.8.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"
   },
@@ -82,6 +83,11 @@
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "moduleNameMapper": {
+      "^@core/(.*)$": "<rootDir>/core/$1",
+      "^@features/(.*)$": "<rootDir>/features/$1",
+      "^@config/(.*)$": "<rootDir>/core/config/$1"
     },
     "collectCoverageFrom": [
       "**/*.(t|j)s"

@@ -65,7 +65,7 @@ export const ImportToAreaDialog = ({
     mutation.mutate(numericAreaId, {
       onSuccess: () => {
         toast.success(
-          `Encuesta importada en el área ${numericAreaId} correctamente`
+          `Mapa de calor importado en el área ${numericAreaId} correctamente`
         );
         setOpen(false);
         setAreaId("");
@@ -87,11 +87,11 @@ export const ImportToAreaDialog = ({
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Importar encuesta a un área</DialogTitle>
+          <DialogTitle>Importar mapa de calor a un área</DialogTitle>
           <DialogDescription>
-            Guarda el plano y el mapa de calor de «{surveyName ?? "la encuesta"}»
-            en un área de la app. Al confirmar irás a la pestaña «Mapa de calor»
-            del área seleccionada.
+            Guarda el plano y el mapa de calor de «
+            {surveyName ?? "el mapa"}» en un área de la app. Al confirmar irás a
+            la pestaña «Mapa de calor» del área seleccionada.
           </DialogDescription>
         </DialogHeader>
 

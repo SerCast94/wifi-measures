@@ -120,8 +120,8 @@ const ClientNodeView = ({ data }: NodeProps<ClientNodeType>) => (
   <div
     className="flex flex-col items-center gap-0.5 px-1 py-0.5 rounded-md border bg-card min-w-[86px]"
     style={{ borderColor: signalHex(data.signal) }}
-    title={`${data.label}${data.protocol ? ` Â· ${data.protocol}` : ""}${
-      data.signal != null ? ` Â· ${data.signal} dBm` : ""
+    title={`${data.label}${data.protocol ? ` · ${data.protocol}` : ""}${
+      data.signal != null ? ` · ${data.signal} dBm` : ""
     }`}
   >
     <Handle type="target" position={Position.Left} style={{ opacity: 0 }} />
@@ -157,15 +157,15 @@ const ApNodeView = ({ data }: NodeProps<ApNodeType>) => (
         className="ml-auto text-[10px] font-semibold shrink-0"
         style={{ color: signalHex(data.signal) }}
       >
-        {data.signal != null ? `${data.signal} dBm` : "â€”"}
+        {data.signal != null ? `${data.signal} dBm` : "—"}
       </span>
     </div>
     <div className="flex flex-wrap items-center gap-1 mt-1.5">
       <Badge variant="outline" className="text-[10px]">
-        Ch {data.channel ?? "â€”"} Â· {data.band ?? "â€”"}
+        Ch {data.channel ?? "—"} · {data.band ?? "—"}
       </Badge>
       <Badge variant="secondary" className="text-[10px]">
-        {data.ssidCount ?? 0} SSID Â· {data.bssidCount ?? 0} BSSID Â·{" "}
+        {data.ssidCount ?? 0} SSID · {data.bssidCount ?? 0} BSSID ·{" "}
         {data.clientCount ?? 0} cli
       </Badge>
     </div>
@@ -278,7 +278,7 @@ const TopologyGraph = ({ analysisName, hosts }: TopologyGraphProps) => {
       simNodes.push({ id: `ap-${ap.id}`, kind: "ap", radius: 62 });
     }
 
-    // SimulaciÃ³n force-directed: SSIDs a la derecha, APs a la izquierda
+    // Simulación force-directed: SSIDs a la derecha, APs a la izquierda
     const simulation = forceSimulation<SimNode>(simNodes)
       .force(
         "link",
@@ -336,7 +336,7 @@ const TopologyGraph = ({ analysisName, hosts }: TopologyGraphProps) => {
         type: "ssid",
         position: positionById.get(ssidNodeId)!,
         data: {
-          label: entry.ssid.name ?? "â€”",
+          label: entry.ssid.name ?? "—",
           security: entry.ssid.securityType,
           clientCount: entry.clients.length,
           expanded: expandedIds.has(ssidNodeId),
@@ -400,7 +400,7 @@ const TopologyGraph = ({ analysisName, hosts }: TopologyGraphProps) => {
     return () => clearTimeout(timer);
   }, [computedNodes, setNodes, fitView]);
 
-  // Al arrastrar un SSID, sus clientes se mueven con Ã©l
+  // Al arrastrar un SSID, sus clientes se mueven con él
   const onNodeDragStart = useCallback(
     (_event: unknown, node: FlowNode) => {
       const positions = new Map<string, { x: number; y: number }>();
@@ -440,7 +440,7 @@ const TopologyGraph = ({ analysisName, hosts }: TopologyGraphProps) => {
   if (hosts.length === 0) {
     return (
       <p className="py-8 text-center text-sm text-muted-foreground">
-        Sin dispositivos para construir la topologÃ­a.
+        Sin dispositivos para construir la topología.
       </p>
     );
   }
@@ -474,10 +474,10 @@ const TopologyGraph = ({ analysisName, hosts }: TopologyGraphProps) => {
               <Radio className="h-3 w-3 text-purple-500" /> Puntos de acceso
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="inline-block h-2 w-2 rounded-full bg-green-500" /> â‰¥ -60 dBm
+              <span className="inline-block h-2 w-2 rounded-full bg-green-500" /> ≥ -60 dBm
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="inline-block h-2 w-2 rounded-full bg-yellow-500" /> -60â€¦-70 dBm
+              <span className="inline-block h-2 w-2 rounded-full bg-yellow-500" /> -60…-70 dBm
             </span>
             <span className="flex items-center gap-1.5">
               <span className="inline-block h-2 w-2 rounded-full bg-red-500" /> &lt; -70 dBm
@@ -504,7 +504,7 @@ const TopologyGraph = ({ analysisName, hosts }: TopologyGraphProps) => {
         </div>
 
         <p className="mt-2 text-xs text-muted-foreground">
-          {analysisName} Â· Arrastra cualquier nodo para reorganizarlo, usa la
+          {analysisName} · Arrastra cualquier nodo para reorganizarlo, usa la
           rueda para zoom y la flecha de cada red para ver u ocultar sus
           clientes.
         </p>

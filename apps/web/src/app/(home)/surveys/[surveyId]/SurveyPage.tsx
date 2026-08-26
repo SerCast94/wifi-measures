@@ -57,7 +57,7 @@ const SurveyPage = () => {
   if (isLoading) {
     return (
       <div className="container max-w-5xl px-2 py-2 mx-auto mb-4 sm:py-6">
-        <p className="text-sm text-muted-foreground">Cargando encuesta…</p>
+        <p className="text-sm text-muted-foreground">Cargando mapa de calor…</p>
       </div>
     );
   }
@@ -66,7 +66,7 @@ const SurveyPage = () => {
     return (
       <div className="container max-w-5xl px-2 py-2 mx-auto mb-4 sm:py-6">
         <p className="text-sm text-muted-foreground">
-          No se encontró la encuesta.
+          No se encontró el mapa de calor.
         </p>
         <Button variant="outline" size="sm" className="mt-4" onClick={() => refetch()}>
           Reintentar
@@ -84,7 +84,7 @@ const SurveyPage = () => {
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <Breadcrumbs
           items={[
-            { label: "Encuestas", to: "/surveys" },
+            { label: "Mapas de calor", to: "/surveys" },
             { label: survey.name ?? survey.surveyName ?? survey.idLinkLive },
           ]}
         />
@@ -162,7 +162,7 @@ const SurveyPage = () => {
         ) : (
           <Card>
             <CardContent className="mt-4 text-sm text-muted-foreground">
-              Esta encuesta no tiene plano ni datos de mapa de calor.
+              Este mapa de calor no tiene plano ni datos.
             </CardContent>
           </Card>
         )}

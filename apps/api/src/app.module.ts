@@ -19,6 +19,8 @@ import { MeasuresModule } from "@features/measures/measures.module";
 import { SurveysModule } from "@features/surveys/surveys.module";
 import { AnalysesModule } from "@features/analyses/analyses.module";
 import { NetAllyModule } from "@features/netally/netally.module";
+import { AuditsModule } from "@features/audits/audits.module";
+import { FilesModule } from "@features/files/files.module";
 import { ExceptionsModule } from "@core/exceptions/exceptions.module";
 import { ValidatorsModule } from "@core/validators/validators.module";
 
@@ -48,6 +50,8 @@ import { ValidatorsModule } from "@core/validators/validators.module";
     SurveysModule,
     AnalysesModule,
     NetAllyModule,
+    AuditsModule,
+  FilesModule,
   ],
   controllers: [],
   providers: [],

@@ -28,6 +28,7 @@ function Layout() {
           <main className="relative z-10 flex flex-col flex-auto h-auto min-w-0 min-h-full">
             {toolbar}
             <div
+              id="main-scroll"
               className="relative z-10 flex flex-col flex-auto h-[calc(100dvh_-_49px)] overflow-y-auto overflow-x-hidden"
               ref={divRef}
             >

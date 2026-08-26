@@ -17,12 +17,12 @@ export const SyncSurveysBtn = () => {
       onSuccess: (surveys) => {
         toast.success(
           surveys.length > 0
-            ? `${surveys.length} encuestas sincronizadas correctamente`
-            : "No hay encuestas nuevas que sincronizar"
+            ? `${surveys.length} mapas de calor sincronizados correctamente`
+            : "No hay mapas nuevos que sincronizar"
         );
       },
       onError: (error) => {
-        toast.error(`Error al sincronizar encuestas: ${error.message}`);
+        toast.error(`Error al sincronizar mapas: ${error.message}`);
       },
     });
   };
@@ -42,7 +42,7 @@ export const SyncSurveysBtn = () => {
       }
       className="bg-primary text-primary-foreground"
     >
-      <span className="hidden sm:flex">Sincronizar Encuestas</span>
+      <span className="hidden sm:flex">Sincronizar Mapas</span>
     </LoadingButton>
   );
 };

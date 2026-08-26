@@ -13,7 +13,7 @@ import { getLastSync, setLastSync, type SyncSource } from "../lib/last-sync";
 
 const SOURCES: { key: SyncSource; label: string }[] = [
   { key: "measures", label: "Medidas" },
-  { key: "surveys", label: "Encuestas" },
+  { key: "surveys", label: "Mapas" },
   { key: "analyses", label: "Análisis" },
 ];
 

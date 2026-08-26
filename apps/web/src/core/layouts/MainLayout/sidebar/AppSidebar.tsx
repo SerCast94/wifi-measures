@@ -2,12 +2,12 @@ import { memo, useEffect } from "react";
 
 import {
   Activity,
-  GlobeIcon,
-  LayoutDashboard,
+  ClipboardCheckIcon,
   Radar,
   RadioTowerIcon,
   Router,
   Users2Icon,
+  PaperclipIcon,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 
@@ -36,11 +36,11 @@ export interface MenuItem {
   permissions?: string[];
 }
 
-const homeItems: MenuItem[] = [
+const auditItems: MenuItem[] = [
   {
-    title: "Inicio",
-    url: "/home",
-    icon: LayoutDashboard,
+    title: "Auditorías",
+    url: "/audits",
+    icon: ClipboardCheckIcon,
   },
   {
     title: "Medidas",
@@ -48,12 +48,7 @@ const homeItems: MenuItem[] = [
     icon: RadioTowerIcon,
   },
   {
-    title: "Áreas",
-    url: "/areas",
-    icon: GlobeIcon,
-  },
-  {
-    title: "Encuestas",
+    title: "Mapas de calor",
     url: "/surveys",
     icon: Radar,
   },
@@ -62,6 +57,14 @@ const homeItems: MenuItem[] = [
     url: "/analyses",
     icon: Activity,
   },
+  {
+    title: "Archivos",
+    url: "/files",
+    icon: PaperclipIcon,
+  },
+];
+
+const managementItems: MenuItem[] = [
   {
     title: "Unidades",
     url: "/units",
@@ -124,46 +127,31 @@ function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Home</SidebarGroupLabel>
+          <SidebarGroupLabel>Auditoría Wi-Fi</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {homeItems.map((item) => (
+              {auditItems.map((item) => (
                 <AppSidebarMenuItem key={item.title} item={item} />
               ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        {user?.permissions &&
-          user?.permissions.some((perm) => perm === MANAGE_USERS) && (
-            <>
-              <SidebarSeparator />
-              <SidebarGroup>
-                <SidebarGroupLabel>Administración</SidebarGroupLabel>
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    {adminItems.map((item) => (
-                      <SidebarMenuItem key={item.title}>
-                        <SidebarMenuButton
-                          tooltip={item.title}
-                          className={
-                            location.pathname.includes(item.url)
-                              ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                              : ""
-                          }
-                          asChild
-                        >
-                          <Link to={item.url}>
-                            <item.icon />
-                            <span>{item.title}</span>
-                          </Link>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    ))}
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </SidebarGroup>
-            </>
-          )}
+        <SidebarSeparator />
+        <SidebarGroup>
+          <SidebarGroupLabel>Gestión</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {managementItems.map((item) => (
+                <AppSidebarMenuItem key={item.title} item={item} />
+              ))}
+              {user?.permissions &&
+                user?.permissions.some((perm) => perm === MANAGE_USERS) &&
+                adminItems.map((item) => (
+                  <AppSidebarMenuItem key={item.title} item={item} />
+                ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
     </Sidebar>
   );

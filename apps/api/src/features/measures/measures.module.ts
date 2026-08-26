@@ -27,6 +27,6 @@ import { LinkLiveSubmissionsRepository } from "./infrastructure/repositories/lin
     AreaPlanService,
   ],
   controllers: [MeasuresController, AreasController],
-  exports: [AreaPlanService],
+  exports: [AreaPlanService, MeasuresService],
 })
 export class MeasuresModule {}

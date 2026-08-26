@@ -196,9 +196,23 @@ input:-webkit-autofill:active {
 }
 
 /**
- * Print styles: oculta la navegaci�n al imprimir o exportar a PDF
+ * Print styles: convierte la página de informe en un documento A4
+ * paginado (oculta la navegación y desactiva el scroll interno).
  */
+@page {
+  size: A4;
+  margin: 12mm 10mm;
+}
+
 @media print {
+  html,
+  body,
+  #root {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
   [data-sidebar='sidebar'],
   header,
   .no-print {
@@ -206,8 +220,26 @@ input:-webkit-autofill:active {
   }
 
   main,
-  #main-layout {
+  #main-layout,
+  #main-scroll {
+    display: block !important;
+    position: static !important;
     height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Los colores de fondos y bordes de gráficas deben imprimirse */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Los contenedores con scroll recortarían el contenido impreso */
+  .overflow-x-auto,
+  .overflow-y-auto,
+  .overflow-auto {
     overflow: visible !important;
   }
 
