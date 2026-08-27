@@ -117,8 +117,9 @@ model AuditFloor {
   order   Int    @default(0)
 
   audit   Audit          @relation(fields: [auditId], references: [id], onDelete: Cascade)
-  surveys AuditSurvey[]
-  measures AuditMeasure[]
+  surveys   AuditSurvey[]
+  measures  AuditMeasure[]
+  analyses  AuditAnalysis[]
 
   @@index([auditId])
   @@map("audit_floors")
@@ -156,9 +157,11 @@ model AuditSurvey {
 model AuditAnalysis {
   auditId    String @map("audit_id")
   analysisId Int    @map("analysis_id")
+  floorId    Int?   @map("floor_id")
 
   audit    Audit            @relation(fields: [auditId], references: [id], onDelete: Cascade)
   analysis LinkLiveAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  floor    AuditFloor?      @relation(fields: [floorId], references: [id], onDelete: SetNull)
 
   @@id([auditId, analysisId])
   @@index([analysisId])

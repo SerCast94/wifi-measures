@@ -212,13 +212,44 @@ export class AuditReportService {
     if (include("radio") || include("descubrimiento")) {
       const analysisLinks = await client.auditAnalysis.findMany({
         where: { auditId },
-        include: { analysis: { select: { id: true, idLinkLive: true, name: true, startTime: true } } },
+        include: { analysis: { select: { id: true, idLinkLive: true, name: true, startTime: true, unitName: true } } },
       });
 
       if (include("radio")) {
         const channelRows: Array<Record<string, unknown>> = [];
         const ssidRows: Array<Record<string, unknown>> = [];
         const apRows: Array<Record<string, unknown>> = [];
+
+        // Detalle completo por análisis vinculado (todas las tablas del informe)
+        const analisisDetalle: Array<Record<string, unknown>> = [];
+        for (const link of analysisLinks) {
+          const hosts = await client.linkLiveAnalysisHost.findMany({
+            where: { analysisId: link.analysis.id },
+            orderBy: [{ hostType: "asc" }, { signal: "desc" }],
+          });
+          analisisDetalle.push({
+            id: link.analysis.id,
+            guid: link.analysis.idLinkLive,
+            name: link.analysis.name,
+            startTime: link.analysis.startTime,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            unitName: (link.analysis as any).unitName ?? null,
+            hosts: hosts.map((host: any) => ({
+              hostType: host.hostType,
+              name: host.name,
+              mac: host.mac,
+              channel: host.channel,
+              band: host.band,
+              signal: host.signal,
+              snr: host.snr,
+              ssid: host.ssid,
+              securityType: host.securityType,
+              protocol: host.protocol,
+              lastSeen: host.lastSeen,
+            })),
+          });
+        }
+        data.analisisDetalle = analisisDetalle;
 
         for (const link of analysisLinks) {
           const hosts = await client.linkLiveAnalysisHost.findMany({

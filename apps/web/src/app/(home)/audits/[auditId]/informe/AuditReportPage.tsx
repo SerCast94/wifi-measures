@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router";
-import { PrinterIcon, SaveIcon, FileCheck2Icon } from "lucide-react";
+import { SaveIcon, FileCheck2Icon } from "lucide-react";
 import { toast } from "sonner";
 import {
   Bar,
@@ -318,27 +318,6 @@ const AuditReportPage = () => {
     }
   };
 
-  const handleSaveVersionAndPrint = async () => {
-    try {
-      const saved = await saveVersion.mutateAsync([
-        "resumen",
-        "cobertura",
-        "radio",
-        "conectividad",
-        "rendimiento",
-        "roaming",
-        "descubrimiento",
-        "incidencias",
-        "conclusiones",
-        "recomendaciones",
-        "anexos",
-      ]);
-      toast.success(`Informe v${saved.version} registrado. Abriendo diálogo de impresión…`);
-      setTimeout(() => window.print(), 300);
-    } catch {
-      // gestionado globalmente
-    }
-  };
 
   return (
     <div
@@ -359,12 +338,38 @@ const AuditReportPage = () => {
       <div className="print:hidden">
         <AuditHeader />
         <div className="mb-4 flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => window.print()}>
-            <PrinterIcon className="w-4 h-4 mr-1" /> Imprimir / PDF
+          <Button
+            variant="outline"
+            disabled={saveVersion.isPending}
+            onClick={async () => {
+              try {
+                const saved = await saveVersion.mutateAsync([
+                  "resumen",
+                  "cobertura",
+                  "radio",
+                  "conectividad",
+                  "rendimiento",
+                  "roaming",
+                  "descubrimiento",
+                  "incidencias",
+                  "conclusiones",
+                  "recomendaciones",
+                  "anexos",
+                ]);
+                toast.success(`Informe v${saved.version} registrado.`);
+              } catch {
+                // gestionado globalmente
+              }
+            }}
+          >
+            <SaveIcon className="w-4 h-4 mr-1" /> Registrar versión
           </Button>
-          <Button onClick={handleSaveVersionAndPrint} disabled={saveVersion.isPending}>
-            <FileCheck2Icon className="w-4 h-4 mr-1" />
-            Registrar versión e imprimir
+          <Button
+            onClick={() =>
+              window.open(`/api/v1/audits/${auditId}/informe.pdf`, "_blank")
+            }
+          >
+            <FileCheck2Icon className="w-4 h-4 mr-1" /> Abrir PDF del informe
           </Button>
           <Button variant="outline" onClick={() => downloadImagesZip(auditId, audit?.code)}>
             Descargar imágenes (ZIP)
@@ -818,19 +823,22 @@ const AuditReportPage = () => {
           <ol className="list-decimal space-y-2 pl-5 text-sm">
             {incidencias.map((issue) => (
               <li key={String(issue.id)}>
-                {issue.photo ? (
-                  <img
-                    src={String(issue.photo)}
-                    alt={`Foto de ${String(issue.title)}`}
-                    className="mb-1 max-h-40 rounded border object-cover print:max-h-32"
-                  />
-                ) : null}
                 <span className="font-medium">[{String(issue.severity)}] {String(issue.title)}</span>
                 {issue.description ? (
                   <p className="text-muted-foreground">{String(issue.description)}</p>
                 ) : null}
                 {issue.recommendationText ? (
                   <p>Recomendación: {String(issue.recommendationText)}</p>
+                ) : null}
+                {issue.location || issue.metric ? (
+                  <p className="text-xs text-muted-foreground">{[issue.location, issue.metric].filter(Boolean).join(" · ")}</p>
+                ) : null}
+                {issue.photo ? (
+                  <img
+                    src={String(issue.photo)}
+                    alt={`Foto de ${String(issue.title)}`}
+                    className="mt-1 max-h-40 rounded border object-cover print:max-h-32"
+                  />
                 ) : null}
               </li>
             ))}
