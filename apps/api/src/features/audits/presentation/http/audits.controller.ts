@@ -142,9 +142,21 @@ export class AuditsController {
     const { auditDate, startDate, endDate, ...rest } = dto;
     return this.auditsService.update(id, {
       ...rest,
-      auditDate: auditDate ? new Date(auditDate) : auditDate === null ? null : undefined,
-      startDate: startDate ? new Date(startDate) : startDate === null ? null : undefined,
-      endDate: endDate ? new Date(endDate) : endDate === null ? null : undefined,
+      auditDate: auditDate
+        ? new Date(auditDate)
+        : auditDate === null
+          ? null
+          : undefined,
+      startDate: startDate
+        ? new Date(startDate)
+        : startDate === null
+          ? null
+          : undefined,
+      endDate: endDate
+        ? new Date(endDate)
+        : endDate === null
+          ? null
+          : undefined,
     });
   }
 
@@ -179,7 +191,10 @@ export class AuditsController {
     await this.auditsService.getByIdOrThrow(id);
     const client = this.databaseClient();
     if (!client) return [];
-    return client.auditTest.findMany({ where: { auditId: id }, orderBy: { sortOrder: "asc" } });
+    return client.auditTest.findMany({
+      where: { auditId: id },
+      orderBy: { sortOrder: "asc" },
+    });
   }
 
   @Post(":id/tests")
@@ -253,7 +268,11 @@ export class AuditsController {
     const ids = dto.ids.map((value) => String(value));
     if (dto.type === "measure") return this.auditsService.addMeasures(id, ids);
     if (dto.type === "survey")
-      return this.auditsService.addSurveys(id, ids.map(Number), dto.floorId ?? null);
+      return this.auditsService.addSurveys(
+        id,
+        ids.map(Number),
+        dto.floorId ?? null
+      );
     return this.auditsService.addAnalyses(id, ids.map(Number));
   }
 
@@ -265,8 +284,10 @@ export class AuditsController {
     @Param("type") type: "measure" | "survey" | "analysis",
     @Param("memberId") memberId: string
   ) {
-    if (type === "survey") return this.auditsService.removeSurvey(id, Number(memberId));
-    if (type === "analysis") return this.auditsService.removeAnalysis(id, Number(memberId));
+    if (type === "survey")
+      return this.auditsService.removeSurvey(id, Number(memberId));
+    if (type === "analysis")
+      return this.auditsService.removeAnalysis(id, Number(memberId));
     return this.auditsService.removeMeasure(id, memberId);
   }
 
@@ -337,7 +358,10 @@ export class AuditsController {
   @Delete(":id/issues/:issueId")
   @HttpCode(200)
   @HasPermissions([MANAGE_MEASURES], "any")
-  async removeIssue(@Param("id") id: string, @Param("issueId") issueId: string) {
+  async removeIssue(
+    @Param("id") id: string,
+    @Param("issueId") issueId: string
+  ) {
     return this.issueService.remove(id, issueId);
   }
 
@@ -366,7 +390,11 @@ export class AuditsController {
     @Param("recommendationId") recommendationId: string,
     @Body() dto: UpdateRecommendationDto
   ) {
-    return this.recommendationService.update(id, recommendationId, dto as never);
+    return this.recommendationService.update(
+      id,
+      recommendationId,
+      dto as never
+    );
   }
 
   @Delete(":id/recommendations/:recommendationId")

@@ -33,25 +33,49 @@ export class AuditDataQualityService {
     const problems: QualityProblem[] = [];
     let checks = 0;
 
-    const [measureLinks, surveyLinks, analysisLinks, floors] = await Promise.all([
-      client.auditMeasure.findMany({
-        where: { auditId },
-        include: { measure: { select: { id: true, idLinkLive: true, raw: true, createdAt: true, unitName: true } } },
-      }),
-      client.auditSurvey.findMany({
-        where: { auditId },
-        include: {
-          survey: {
-            select: { id: true, idLinkLive: true, image: true, _count: { select: { points: true } } },
+    const [measureLinks, surveyLinks, analysisLinks, floors] =
+      await Promise.all([
+        client.auditMeasure.findMany({
+          where: { auditId },
+          include: {
+            measure: {
+              select: {
+                id: true,
+                idLinkLive: true,
+                raw: true,
+                createdAt: true,
+                unitName: true,
+              },
+            },
           },
-        },
-      }),
-      client.auditAnalysis.findMany({
-        where: { auditId },
-        include: { analysis: { select: { id: true, idLinkLive: true, _count: { select: { hosts: true } } } } },
-      }),
-      client.auditFloor.findMany({ where: { auditId } }),
-    ]);
+        }),
+        client.auditSurvey.findMany({
+          where: { auditId },
+          include: {
+            survey: {
+              select: {
+                id: true,
+                idLinkLive: true,
+                image: true,
+                _count: { select: { points: true } },
+              },
+            },
+          },
+        }),
+        client.auditAnalysis.findMany({
+          where: { auditId },
+          include: {
+            analysis: {
+              select: {
+                id: true,
+                idLinkLive: true,
+                _count: { select: { hosts: true } },
+              },
+            },
+          },
+        }),
+        client.auditFloor.findMany({ where: { auditId } }),
+      ]);
 
     // ---- Medidas ----
     if (measureLinks.length === 0) {
@@ -89,7 +113,10 @@ export class AuditDataQualityService {
       }
       checks += 1;
 
-      if (parseNum(raw["linkSignalLevelMean"]) === null && parseNum(raw["linkSNRMean"]) === null) {
+      if (
+        parseNum(raw["linkSignalLevelMean"]) === null &&
+        parseNum(raw["linkSNRMean"]) === null
+      ) {
         problems.push({
           severity: "INFO",
           code: "measure_link_metrics_missing",

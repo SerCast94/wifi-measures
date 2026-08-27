@@ -9,6 +9,7 @@ import {
 import { CHECKLIST_TEMPLATE } from "@features/audits/domain/entities/checklist-template";
 import { AUDIT_TEST_SECTIONS } from "@features/audits/domain/entities/audit.types";
 import { PROFILE_PRESETS } from "@features/audits/domain/entities/profile-presets";
+import { classifyMeasureType } from "@features/measures/domain/entities/measure-type";
 
 export interface CreateAuditInput {
   name: string;
@@ -33,7 +34,7 @@ export interface CreateAuditInput {
   floorNames?: string[];
 }
 
-export interface UpdateAuditInput extends Partial<CreateAuditInput> {}
+export type UpdateAuditInput = Partial<CreateAuditInput>;
 
 @Injectable()
 export class AuditsService {
@@ -86,7 +87,9 @@ export class AuditsService {
       ? items
           .filter(
             (item) =>
-              item && typeof item.name === "string" && typeof item.href === "string"
+              item &&
+              typeof item.name === "string" &&
+              typeof item.href === "string"
           )
           .map((item) => ({
             name: item.name,
@@ -112,7 +115,6 @@ export class AuditsService {
     if (input.name !== undefined) data.name = input.name;
     if (input.description !== undefined) data.description = input.description;
     if (input.checklistExtras !== undefined) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const extras = input.checklistExtras as any;
       if (!Array.isArray(extras)) {
         throw new Error("checklistExtras debe ser un array");
@@ -143,7 +145,10 @@ export class AuditsService {
         { location: { contains: params.q, mode: "insensitive" } },
       ];
     }
-    if (params.status && (AUDIT_STATUSES as readonly string[]).includes(params.status)) {
+    if (
+      params.status &&
+      (AUDIT_STATUSES as readonly string[]).includes(params.status)
+    ) {
       where.status = params.status;
     }
 
@@ -153,7 +158,14 @@ export class AuditsService {
         where,
         include: {
           profile: true,
-          _count: { select: { measures: true, surveys: true, analyses: true, issues: true } },
+          _count: {
+            select: {
+              measures: true,
+              surveys: true,
+              analyses: true,
+              issues: true,
+            },
+          },
         },
         orderBy: { createdAt: "desc" },
         skip: (page - 1) * size,
@@ -253,15 +265,24 @@ export class AuditsService {
         profile: { select: { checklistExtras: true } },
       },
     });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const extrasRaw = (auditRow?.profile as any)?.checklistExtras as
-      | Array<{ section?: string; key?: string; title: string; required?: boolean }>
+      | Array<{
+          section?: string;
+          key?: string;
+          title: string;
+          required?: boolean;
+        }>
       | null
       | undefined;
     const validSections = new Set<string>(AUDIT_TEST_SECTIONS);
     const extras = Array.isArray(extrasRaw)
-      ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        extrasRaw.filter((item) => item && typeof item.title === "string" && validSections.has(String(item.section)))
+      ? extrasRaw.filter(
+          (item) =>
+            item &&
+            typeof item.title === "string" &&
+            validSections.has(String(item.section))
+        )
       : [];
 
     let sortOrder = 0;
@@ -298,7 +319,11 @@ export class AuditsService {
           sourceType: "MANUAL",
           sortOrder,
         },
-        update: { title: String(item.title), required: Boolean(item.required ?? false), sortOrder },
+        update: {
+          title: String(item.title),
+          required: Boolean(item.required ?? false),
+          sortOrder,
+        },
       });
     }
   }
@@ -497,10 +522,17 @@ export class AuditsService {
     ]);
     // la imagen del plano es pesada: se devuelve solo presencia
     return {
-      measures: measures.map((m: any) => ({ ...m })),
+      measures: measures.map((m: any) => ({
+        ...m,
+        measureType: classifyMeasureType(m.measure?.resultType),
+      })),
       surveys: surveys.map((s: any) => ({
         ...s,
-        survey: { ...s.survey, hasImage: Boolean(s.survey.image), image: undefined },
+        survey: {
+          ...s.survey,
+          hasImage: Boolean(s.survey.image),
+          image: undefined,
+        },
       })),
       analyses,
     };
@@ -517,15 +549,32 @@ export class AuditsService {
   ) {
     const audit = await this.getByIdOrThrow(auditId);
     const client = this.client;
-    if (!client) return { measures: [], surveys: [], analyses: [], total: 0, page: 1, size: 50 };
+    if (!client)
+      return {
+        measures: [],
+        surveys: [],
+        analyses: [],
+        total: 0,
+        page: 1,
+        size: 50,
+      };
 
     const page = Math.max(1, paging?.page ?? 1);
     const size = Math.min(200, Math.max(10, paging?.size ?? 50));
 
     const [membersM, membersS, membersA] = await Promise.all([
-      client.auditMeasure.findMany({ where: { auditId }, select: { measureId: true } }),
-      client.auditSurvey.findMany({ where: { auditId }, select: { surveyId: true } }),
-      client.auditAnalysis.findMany({ where: { auditId }, select: { analysisId: true } }),
+      client.auditMeasure.findMany({
+        where: { auditId },
+        select: { measureId: true },
+      }),
+      client.auditSurvey.findMany({
+        where: { auditId },
+        select: { surveyId: true },
+      }),
+      client.auditAnalysis.findMany({
+        where: { auditId },
+        select: { analysisId: true },
+      }),
     ]);
     const excludeM = membersM.map((m: any) => m.measureId);
     const excludeS = membersS.map((m: any) => m.surveyId);
@@ -543,7 +592,12 @@ export class AuditsService {
     const hasDateWindow = Boolean(audit.startDate || audit.endDate);
 
     const measureWhere: Record<string, unknown> = {
-      id: { notIn: excludeM.length > 0 ? excludeM : ["00000000-0000-0000-0000-000000000000"] },
+      id: {
+        notIn:
+          excludeM.length > 0
+            ? excludeM
+            : ["00000000-0000-0000-0000-000000000000"],
+      },
     };
     if (hasDateWindow) measureWhere.fechaHora = dateFilter;
     if (audit.areaKeys.length > 0 || audit.ssidFilter) {
@@ -551,81 +605,101 @@ export class AuditsService {
       measureWhere.OR = [
         ...(keyFilter.length > 0 ? [{ unitName: { in: keyFilter } }] : []),
         ...(keyFilter.length > 0 ? [{ labels: { hasSome: keyFilter } }] : []),
-        ...(audit.ssidFilter ? [{ raw: { path: ["ssid"], string_contains: audit.ssidFilter } }] : []),
+        ...(audit.ssidFilter
+          ? [{ raw: { path: ["ssid"], string_contains: audit.ssidFilter } }]
+          : []),
       ];
     }
 
-    const [measures, surveys, analyses, totalMeasures, totalSurveys, totalAnalyses] =
-      await Promise.all([
-        client.medida.findMany({
-          where: measureWhere,
-          select: {
-            id: true,
-            idLinkLive: true,
-            name: true,
-            createdAt: true,
-            overallColor: true,
-            unitName: true,
-          },
-          orderBy: { createdAt: "desc" },
-          skip: (page - 1) * size,
-          take: size,
-        }),
-        client.linkLiveSurvey.findMany({
-          where: {
-            id: { notIn: excludeS },
-            ...(hasDateWindow ? { surveyStartTime: dateFilter } : {}),
-          },
-          select: {
-            id: true,
-            idLinkLive: true,
-            name: true,
-            surveyName: true,
-            surveyPointCount: true,
-            surveyStartTime: true,
-          },
-          orderBy: { surveyStartTime: "desc" },
-          skip: (page - 1) * size,
-          take: size,
-        }),
-        client.linkLiveAnalysis.findMany({
-          where: {
-            id: { notIn: excludeA },
-            ...(hasDateWindow ? { startTime: dateFilter } : {}),
-          },
-          select: {
-            id: true,
-            idLinkLive: true,
-            name: true,
-            startTime: true,
-            apsCount: true,
-            ssidsCount: true,
-            clientsCount: true,
-          },
-          orderBy: { startTime: "desc" },
-          skip: (page - 1) * size,
-          take: size,
-        }),
-        client.medida.count({ where: measureWhere }),
-        client.linkLiveSurvey.count({
-          where: {
-            id: { notIn: excludeS },
-            ...(hasDateWindow ? { surveyStartTime: dateFilter } : {}),
-          },
-        }),
-        client.linkLiveAnalysis.count({
-          where: {
-            id: { notIn: excludeA },
-            ...(hasDateWindow ? { startTime: dateFilter } : {}),
-          },
-        }),
-      ]);
-
-    return {
+    const [
       measures,
       surveys,
       analyses,
-      paging: { page, size, totals: { measure: totalMeasures, survey: totalSurveys, analysis: totalAnalyses } },
+      totalMeasures,
+      totalSurveys,
+      totalAnalyses,
+    ] = await Promise.all([
+      client.medida.findMany({
+        where: measureWhere,
+        select: {
+          id: true,
+          idLinkLive: true,
+          name: true,
+          resultType: true,
+          createdAt: true,
+          overallColor: true,
+          unitName: true,
+        },
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * size,
+        take: size,
+      }),
+      client.linkLiveSurvey.findMany({
+        where: {
+          id: { notIn: excludeS },
+          ...(hasDateWindow ? { surveyStartTime: dateFilter } : {}),
+        },
+        select: {
+          id: true,
+          idLinkLive: true,
+          name: true,
+          surveyName: true,
+          surveyPointCount: true,
+          surveyStartTime: true,
+        },
+        orderBy: { surveyStartTime: "desc" },
+        skip: (page - 1) * size,
+        take: size,
+      }),
+      client.linkLiveAnalysis.findMany({
+        where: {
+          id: { notIn: excludeA },
+          ...(hasDateWindow ? { startTime: dateFilter } : {}),
+        },
+        select: {
+          id: true,
+          idLinkLive: true,
+          name: true,
+          startTime: true,
+          apsCount: true,
+          ssidsCount: true,
+          clientsCount: true,
+        },
+        orderBy: { startTime: "desc" },
+        skip: (page - 1) * size,
+        take: size,
+      }),
+      client.medida.count({ where: measureWhere }),
+      client.linkLiveSurvey.count({
+        where: {
+          id: { notIn: excludeS },
+          ...(hasDateWindow ? { surveyStartTime: dateFilter } : {}),
+        },
+      }),
+      client.linkLiveAnalysis.count({
+        where: {
+          id: { notIn: excludeA },
+          ...(hasDateWindow ? { startTime: dateFilter } : {}),
+        },
+      }),
+    ]);
+
+    return {
+      measures: measures.map((m: any) => ({
+        ...m,
+        measureType: classifyMeasureType(m.resultType),
+      })),
+      surveys,
+      analyses,
+      paging: {
+        page,
+        size,
+        totals: {
+          measure: totalMeasures,
+          survey: totalSurveys,
+          analysis: totalAnalyses,
+        },
+      },
     };
   }
 
@@ -685,7 +759,10 @@ export class AuditsService {
     const [byStatus, evalGroup, openIssues, recent, syncErrors] =
       await Promise.all([
         client.audit.groupBy({ by: ["status"], _count: { _all: true } }),
-        client.auditEvaluation.groupBy({ by: ["status"], _count: { _all: true } }),
+        client.auditEvaluation.groupBy({
+          by: ["status"],
+          _count: { _all: true },
+        }),
         client.auditIssue.count({
           where: { state: { in: ["SUGERIDA", "ACEPTADA", "MODIFICADA"] } },
         }),
@@ -710,7 +787,8 @@ export class AuditsService {
       ]);
 
     const byStatusMap: Record<string, number> = {};
-    for (const row of byStatus as any[]) byStatusMap[row.status] = row._count._all;
+    for (const row of byStatus as any[])
+      byStatusMap[row.status] = row._count._all;
 
     const evaluations = { ...emptyEvaluations } as Record<string, number>;
     for (const row of evalGroup as any[]) {
@@ -760,7 +838,10 @@ export class AuditsService {
     for (const group of groups as any[]) {
       const row =
         byAudit.get(group.auditId) ??
-        ({ PASS: 0, WARNING: 0, FAIL: 0, UNKNOWN: 0, total: 0 } as Record<string, number>);
+        ({ PASS: 0, WARNING: 0, FAIL: 0, UNKNOWN: 0, total: 0 } as Record<
+          string,
+          number
+        >);
       row[group.status] = group._count._all;
       row.total += group._count._all;
       byAudit.set(group.auditId, row);
@@ -769,8 +850,13 @@ export class AuditsService {
     return {
       audits: audits.map((audit: any) => ({
         ...audit,
-        evaluations:
-          byAudit.get(audit.id) ?? { PASS: 0, WARNING: 0, FAIL: 0, UNKNOWN: 0, total: 0 },
+        evaluations: byAudit.get(audit.id) ?? {
+          PASS: 0,
+          WARNING: 0,
+          FAIL: 0,
+          UNKNOWN: 0,
+          total: 0,
+        },
       })),
     };
   }
@@ -792,17 +878,24 @@ export class AuditsService {
     if (!test) throw new NotFoundException("Prueba no encontrada");
 
     const data: Record<string, unknown> = {};
-    if (input.status && ["PENDIENTE", "COMPLETADA", "NO_APLICABLE"].includes(input.status)) {
+    if (
+      input.status &&
+      ["PENDIENTE", "COMPLETADA", "NO_APLICABLE"].includes(input.status)
+    ) {
       data.status = input.status;
       data.completedAt = input.status === "COMPLETADA" ? new Date() : null;
     }
     if (input.notes !== undefined) data.notes = input.notes;
-    if (input.resultStatus !== undefined) data.resultStatus = input.resultStatus;
+    if (input.resultStatus !== undefined)
+      data.resultStatus = input.resultStatus;
 
     return client.auditTest.update({ where: { id: testId }, data });
   }
 
-  async addManualTest(auditId: string, input: { title: string; section: string }) {
+  async addManualTest(
+    auditId: string,
+    input: { title: string; section: string }
+  ) {
     await this.getByIdOrThrow(auditId);
     const client = this.client;
     if (!client) throw new Error("Base de datos no disponible");
@@ -826,7 +919,9 @@ export class AuditsService {
   async deleteTest(auditId: string, testId: string) {
     const client = this.client;
     if (!client) throw new Error("Base de datos no disponible");
-    const test = await client.auditTest.findFirst({ where: { id: testId, auditId } });
+    const test = await client.auditTest.findFirst({
+      where: { id: testId, auditId },
+    });
     if (!test) throw new NotFoundException("Prueba no encontrada");
     await client.auditTest.delete({ where: { id: testId } });
     return { ok: true };
@@ -837,21 +932,32 @@ export class AuditsService {
   async getChecklistProgress(auditId: string) {
     const client = this.client;
     if (!client) {
-      return { total: 0, required: 0, completed: 0, pendingRequired: 0, pct: 0, sections: [] };
+      return {
+        total: 0,
+        required: 0,
+        completed: 0,
+        pendingRequired: 0,
+        pct: 0,
+        sections: [],
+      };
     }
     const tests = await client.auditTest.findMany({ where: { auditId } });
 
     const required = tests.filter((t: any) => t.required);
     // «No aplica» resuelve el ítem: resta del denominador del progreso.
     const applicable = required.filter((t: any) => t.status !== "NO_APLICABLE");
-    const completed = required.filter((t: any) => t.status === "COMPLETADA").length;
+    const completed = required.filter(
+      (t: any) => t.status === "COMPLETADA"
+    ).length;
 
     const sections = Object.entries(SECTION_LABELS).map(([section, label]) => {
       const sectionTests = tests.filter((t: any) => t.section === section);
       const req = sectionTests.filter((t: any) => t.required);
       const reqApplicable = req.filter((t: any) => t.status !== "NO_APLICABLE");
       const done = req.filter((t: any) => t.status === "COMPLETADA").length;
-      const na = sectionTests.filter((t: any) => t.status === "NO_APLICABLE").length;
+      const na = sectionTests.filter(
+        (t: any) => t.status === "NO_APLICABLE"
+      ).length;
       const evaluated = sectionTests.filter(
         (t: any) => t.resultStatus === "FAIL"
       ).length;
@@ -874,9 +980,12 @@ export class AuditsService {
       total: tests.length,
       required: required.length,
       completed,
-      pendingRequired: applicable.filter((t: any) => t.status === "PENDIENTE").length,
+      pendingRequired: applicable.filter((t: any) => t.status === "PENDIENTE")
+        .length,
       pct:
-        applicable.length > 0 ? Math.round((completed / applicable.length) * 100) : 0,
+        applicable.length > 0
+          ? Math.round((completed / applicable.length) * 100)
+          : 0,
       sections,
     };
   }
@@ -920,7 +1029,6 @@ export class AuditsService {
     conclusion: { globalResult: string | null };
     discovery: { aps: number; ssids: number; clients: number; floors: number };
   }> {
-    const audit = await this.getByIdOrThrow(auditId);
     const client = this.client;
     if (!client) throw new Error("Base de datos no disponible");
 
@@ -974,7 +1082,10 @@ export class AuditsService {
     for (const row of evalCounts) {
       evaluations[row.status] = row._count._all;
     }
-    const totalEvaluations = Object.values(evaluations).reduce((a, b) => a + b, 0);
+    const totalEvaluations = Object.values(evaluations).reduce(
+      (a, b) => a + b,
+      0
+    );
 
     const issuesBySeverity: Record<string, number> = {
       INFO: 0,
@@ -991,7 +1102,8 @@ export class AuditsService {
         issuesBySeverity[row.severity] += row._count._all;
       }
       if (row.state === "SUGERIDA") suggestedIssues += row._count._all;
-      if (row.state === "ACEPTADA" || row.state === "MODIFICADA") acceptedIssues += row._count._all;
+      if (row.state === "ACEPTADA" || row.state === "MODIFICADA")
+        acceptedIssues += row._count._all;
       if (row.state !== "DESCARTADA") activeIssues += row._count._all;
     }
 

@@ -215,6 +215,7 @@ export interface AuditMembers {
       overallColor: string | null;
       unitName: string | null;
     };
+    measureType?: "iperf" | "wireless";
     label: string | null;
     floorId: number | null;
   }>;
@@ -254,6 +255,7 @@ export interface AuditCandidates {
     createdAt: string;
     overallColor: string | null;
     unitName: string | null;
+    measureType?: "iperf" | "wireless";
   }>;
   surveys: Array<{
     id: number;

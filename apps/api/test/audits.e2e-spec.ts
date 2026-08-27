@@ -166,7 +166,9 @@ describe("Audits E2E", () => {
       // Informe reproducible
       const reportData = await request("GET", `/audits/${auditId}/report-data`);
       expect(reportData.status).toBe(200);
-      expect(reportData.json.data.header.name).toBe("[E2E] Auditoría automatizada");
+      expect(reportData.json.data.header.name).toBe(
+        "[E2E] Auditoría automatizada"
+      );
 
       const saved = await request(
         "POST",
@@ -178,7 +180,12 @@ describe("Audits E2E", () => {
       expect(saved.json.data.version).toBe(1);
     } finally {
       // Limpieza: la auditoría no debe quedar en la BD
-      const removed = await request("DELETE", `/audits/${auditId}`, undefined, true);
+      const removed = await request(
+        "DELETE",
+        `/audits/${auditId}`,
+        undefined,
+        true
+      );
       expect([200, 204]).toContain(removed.status);
     }
 

@@ -51,7 +51,7 @@ import { ValidatorsModule } from "@core/validators/validators.module";
     AnalysesModule,
     NetAllyModule,
     AuditsModule,
-  FilesModule,
+    FilesModule,
   ],
   controllers: [],
   providers: [],

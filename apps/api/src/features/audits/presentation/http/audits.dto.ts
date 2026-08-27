@@ -102,7 +102,8 @@ export class AddMembersDto {
 }
 
 export class SetFloorsDto {
-  @IsArray() @IsString({ each: true })
+  @IsArray()
+  @IsString({ each: true })
   names!: string[];
 }
 
@@ -122,7 +123,9 @@ export class CreateIssueDto {
   @IsString() @MaxLength(300) title!: string;
   @IsOptional() @IsString() description?: string;
   @IsOptional() @IsString() type?: string;
-  @IsOptional() @IsIn(ISSUE_SEVERITIES as unknown as string[]) severity?: string;
+  @IsOptional()
+  @IsIn(ISSUE_SEVERITIES as unknown as string[])
+  severity?: string;
   @IsOptional() @IsString() locationLabel?: string;
   @IsOptional() @IsInt() floorId?: number | null;
   @IsOptional() @IsString() metric?: string;
@@ -138,7 +141,9 @@ export class UpdateIssueDto {
   @IsIn(["SUGERIDA", "ACEPTADA", "MODIFICADA", "DESCARTADA"])
   state?: string;
 
-  @IsOptional() @IsIn(ISSUE_SEVERITIES as unknown as string[]) severity?: string;
+  @IsOptional()
+  @IsIn(ISSUE_SEVERITIES as unknown as string[])
+  severity?: string;
   @IsOptional() @IsString() title?: string;
   @IsOptional() @IsString() description?: string;
   @IsOptional() @IsString() type?: string;
@@ -149,19 +154,28 @@ export class UpdateIssueDto {
 
 export class CreateRecommendationDto {
   @IsString() text!: string;
-  @IsOptional() @IsIn(RECOMMENDATION_CATEGORIES as unknown as string[]) category?: string;
+  @IsOptional()
+  @IsIn(RECOMMENDATION_CATEGORIES as unknown as string[])
+  category?: string;
 }
 
 export class UpdateRecommendationDto {
   @IsOptional() @IsString() text?: string;
-  @IsOptional() @IsIn(RECOMMENDATION_CATEGORIES as unknown as string[]) category?: string;
+  @IsOptional()
+  @IsIn(RECOMMENDATION_CATEGORIES as unknown as string[])
+  category?: string;
   @IsOptional() @IsBoolean() accepted?: boolean;
 }
 
 export class UpdateConclusionDto {
   @IsOptional() @IsString() finalText?: string;
   @IsOptional()
-  @IsIn(["APROBADO", "APROBADO_CON_OBSERVACIONES", "NO_CONFORME", "SIN_DATOS_SUFICIENTES"])
+  @IsIn([
+    "APROBADO",
+    "APROBADO_CON_OBSERVACIONES",
+    "NO_CONFORME",
+    "SIN_DATOS_SUFICIENTES",
+  ])
   globalResult?: string;
 }
 

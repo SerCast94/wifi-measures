@@ -103,7 +103,12 @@ export const METRIC_LABELS: Record<string, string> = {
   OVERALL_RESULT: "Resultado del equipo",
 };
 
-export const EVALUATION_STATUSES = ["PASS", "WARNING", "FAIL", "UNKNOWN"] as const;
+export const EVALUATION_STATUSES = [
+  "PASS",
+  "WARNING",
+  "FAIL",
+  "UNKNOWN",
+] as const;
 
 export type EvaluationStatus = (typeof EVALUATION_STATUSES)[number];
 
@@ -140,8 +145,7 @@ export const RECOMMENDATION_CATEGORIES = [
   "INFRAESTRUCTURA",
 ] as const;
 
-export type RecommendationCategory =
-  (typeof RECOMMENDATION_CATEGORIES)[number];
+export type RecommendationCategory = (typeof RECOMMENDATION_CATEGORIES)[number];
 
 /** Umbrales configurables por perfil de auditoría. */
 export interface RangeThreshold {
@@ -219,5 +223,8 @@ export interface EvaluationResult {
 }
 
 export function isKnownStatus(value: unknown): value is AuditStatus {
-  return typeof value === "string" && (AUDIT_STATUSES as readonly string[]).includes(value);
+  return (
+    typeof value === "string" &&
+    (AUDIT_STATUSES as readonly string[]).includes(value)
+  );
 }

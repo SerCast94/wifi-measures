@@ -10,6 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/core/atomic-components/card";
+import { Badge } from "@/core/atomic-components/badge";
 import {
   Table,
   TableBody,
@@ -45,10 +46,21 @@ import {
 type MemberType = "measure" | "survey" | "analysis";
 
 const TYPE_LABELS: Record<MemberType, string> = {
-  measure: "Medidas",
+  measure: "Medidas (señal / iPerf)",
   survey: "Encuestas de cobertura",
   analysis: "Análisis de espectro",
 };
+
+const MeasureTypeBadge = ({ type }: { type?: string | null }) =>
+  type === "iperf" ? (
+    <Badge variant="outline" className="border-sky-300 bg-sky-50 text-sky-700">
+      iPerf
+    </Badge>
+  ) : (
+    <Badge variant="outline" className="border-emerald-300 bg-emerald-50 text-emerald-700">
+      Señal / redes
+    </Badge>
+  );
 
 const FloorSelect = ({
   floors,
@@ -142,7 +154,10 @@ const MembersSection = ({ type }: { type: MemberType }) => {
               (members.data?.measures ?? []).map((link) => (
                 <TableRow key={link.measure.id}>
                   <TableCell>
-                    {link.measure.name ?? link.measure.idLinkLive}
+                    <div className="flex items-center gap-2">
+                      <span>{link.measure.name ?? link.measure.idLinkLive}</span>
+                      <MeasureTypeBadge type={link.measureType} />
+                    </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
@@ -258,31 +273,60 @@ const MembersSection = ({ type }: { type: MemberType }) => {
 
         <div className="rounded-md border p-3 space-y-2">
           <p className="text-sm font-medium">Añadir desde capturas disponibles</p>
-          <div className="max-h-40 overflow-y-auto space-y-1">
-            {((candidates.data ?? []) as Array<Record<string, unknown>>)
-              .filter(
-                (candidate) => !memberIds.has(String(candidate.id))
-              )
-              .map((candidate) => {
-                const id = String(candidate.id);
-                const label =
-                  (candidate.name as string | null) ??
-                  (candidate.surveyName as string | null) ??
-                  (candidate.idLinkLive as string);
-                return (
-                  <label
-                    key={id}
-                    className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted cursor-pointer"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selected.includes(id)}
-                      onChange={() => toggle(id)}
-                    />
-                    <span>{String(label)}</span>
-                  </label>
-                );
-              })}
+          <div className="max-h-40 overflow-y-auto space-y-2">
+            {(() => {
+              const candidateList = ((candidates.data ?? []) as Array<Record<string, unknown>>)
+                .filter((candidate) => !memberIds.has(String(candidate.id)));
+              const groups: Array<{ key: string; label?: string; list: Array<Record<string, unknown>> }> =
+                type === "measure"
+                  ? [
+                      {
+                        key: "wireless",
+                        label: "Señal / conexión",
+                        list: candidateList.filter((candidate) => candidate.measureType !== "iperf"),
+                      },
+                      {
+                        key: "iperf",
+                        label: "Rendimiento (iPerf)",
+                        list: candidateList.filter((candidate) => candidate.measureType === "iperf"),
+                      },
+                    ]
+                  : [{ key: "all", list: candidateList }];
+              return groups.map((group) =>
+                group.list.length === 0 ? null : (
+                  <div key={group.key} className="space-y-1">
+                    {group.label ? (
+                      <p className="px-2 pt-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                        {group.label}
+                      </p>
+                    ) : null}
+                    <div className="space-y-1">
+                      {group.list.map((candidate) => {
+                        const id = String(candidate.id);
+                        const label =
+                          (candidate.name as string | null) ??
+                          (candidate.surveyName as string | null) ??
+                          (candidate.idLinkLive as string);
+                        return (
+                          <label
+                            key={id}
+                            className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selected.includes(id)}
+                              onChange={() => toggle(id)}
+                            />
+                            <span>{String(label)}</span>
+                            {type === "measure" ? <MeasureTypeBadge type={candidate.measureType as string | null} /> : null}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )
+              );
+            })()}
             {(candidates.data ?? []).length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 No hay capturas disponibles: o ya están todas vinculadas a esta

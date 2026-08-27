@@ -209,7 +209,8 @@ const signalColor = (
 };
 
 /** Mapa de calor real (interpolado, igual que el visor de Mapas de calor)
- *  reutilizando el componente SurveyHeatmap sobre el plano del survey. */
+ *  reutilizando el componente SurveyHeatmap sobre el plano del survey.
+ *  Muestra ambos mapas: nivel de señal (dBm) y SNR (dB) si hay datos. */
 const HeatmapImage = ({
   image,
   points,
@@ -219,19 +220,30 @@ const HeatmapImage = ({
   height?: number;
   points: Array<{ metric: string; x: number; y: number; value: number | null }>;
 }) => {
-  const metric = points.some((p) => p.metric === "snr") ? "snr" : "signal";
-  const metricPoints = points
-    .filter((p) => p.metric === metric)
+  const baseImage = image.startsWith("data:") ? image : `data:image/png;base64,${image}`;
+  const hasSignal = points.some((p) => p.metric === "signal" && p.value != null);
+  const hasSnr = points.some((p) => p.metric === "snr" && p.value != null);
+  const signalPoints = points
+    .filter((p) => p.metric === "signal")
+    .map((p) => ({ x: p.x, y: p.y, value: p.value }));
+  const snrPoints = points
+    .filter((p) => p.metric === "snr")
     .map((p) => ({ x: p.x, y: p.y, value: p.value }));
 
   return (
-    <div>
-      <SurveyHeatmap
-        image={image.startsWith("data:") ? image : `data:image/png;base64,${image}`}
-        points={metricPoints}
-        unit={metric === "snr" ? "dB" : "dBm"}
-        metricLabel={metric === "snr" ? "SNR" : "Señal"}
-      />
+    <div className="space-y-4">
+      {hasSignal && (
+        <div>
+          <h4 className="text-xs font-semibold text-muted-foreground mb-1">Mapa de nivel de señal (dBm)</h4>
+          <SurveyHeatmap image={baseImage} points={signalPoints} unit="dBm" metricLabel="Señal" />
+        </div>
+      )}
+      {hasSnr && (
+        <div>
+          <h4 className="text-xs font-semibold text-muted-foreground mb-1">Mapa de SNR (dB)</h4>
+          <SurveyHeatmap image={baseImage} points={snrPoints} unit="dB" metricLabel="SNR" />
+        </div>
+      )}
     </div>
   );
 };
@@ -456,7 +468,7 @@ const AuditReportPage = () => {
                 <BarChart data={utilizationBarData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="canal" fontSize={11} />
-                  <YAxis domain={[-100, 0]} fontSize={11} />
+                  <YAxis domain={[-100, 0]} reversed fontSize={11} />
                   <Tooltip />
                   <Bar dataKey="señal" radius={[3, 3, 0, 0]}>
                     {utilizationBarData.map((entry) => (
@@ -468,6 +480,24 @@ const AuditReportPage = () => {
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Mejor señal (dBm) observada en cada canal (redes detectadas), 14
+                canales con mejor nivel. Cuanto más próxima a 0, mejor señal.
+              </p>
+              <div className="mb-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-2 w-2 rounded-full bg-green-600" />
+                  ≥ -67 dBm (buena)
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
+                  -72 a -67 dBm (límite)
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-2 w-2 rounded-full bg-red-600" />
+                  &lt; -72 dBm (débil)
+                </span>
+              </div>
             </div>
           ) : null}
         </div>

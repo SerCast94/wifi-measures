@@ -118,7 +118,9 @@ describe("interpretConnectivityArray", () => {
   });
 
   it("resultados positivos conocidos", () => {
-    expect(interpretConnectivityArray([{ color: "green" }]).status).toBe("PASS");
+    expect(interpretConnectivityArray([{ color: "green" }]).status).toBe(
+      "PASS"
+    );
     expect(
       interpretConnectivityArray([{ status: "success" }, { ok: true }]).status
     ).toBe("PASS");
@@ -126,9 +128,9 @@ describe("interpretConnectivityArray", () => {
 
   it("resultados negativos conocidos", () => {
     expect(interpretConnectivityArray([{ color: "red" }]).status).toBe("FAIL");
-    expect(
-      interpretConnectivityArray([{ result: "timeout" }]).status
-    ).toBe("FAIL");
+    expect(interpretConnectivityArray([{ result: "timeout" }]).status).toBe(
+      "FAIL"
+    );
   });
 
   it("datos no interpretables: UNKNOWN honesto, nunca inventado", () => {

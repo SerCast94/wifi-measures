@@ -79,7 +79,7 @@ export class AuditSyncService {
 
     // Contadores de duplicados: elementos ya vinculados a la auditoría antes
     // de la sync que siguen presentes tras ella.
-    let duplicates = 0;
+    const duplicates = 0;
     try {
       const [measures, surveys, analyses] = await Promise.all([
         client.auditMeasure.count({ where: { auditId } }),

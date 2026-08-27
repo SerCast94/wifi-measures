@@ -1,8 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
 import { MeasureEntity } from "@features/measures/domain/entities/measure.entity";
+import {
+  classifyMeasureType,
+  measureKind,
+  MeasureKind,
+} from "@features/measures/domain/entities/measure-type";
 
 export class MeasurePresenter {
+  @ApiProperty({ enum: ["iperf", "wireless"] })
+  measureType: MeasureKind;
   @ApiProperty({ type: "number", example: 1 })
   id?: string | number;
   @ApiProperty({ type: "number", example: 1 })
@@ -281,5 +288,10 @@ export class MeasurePresenter {
     this.createdAt = measure.createdAt;
     this.updatedAt = measure.updatedAt;
     this.raw = measure.raw ?? null;
+    this.measureType =
+      measureKind(measure.raw ?? null) === "iperf" ||
+      classifyMeasureType(measure.emisiones) === "iperf"
+        ? "iperf"
+        : "wireless";
   }
 }

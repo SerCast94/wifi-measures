@@ -12,7 +12,7 @@
 		"format": "prettier --write \"**/*.{ts,tsx,md}\""
 	},
 	"keywords": [],
-	"author": "Rafael Larrea Sánchez",
+	"author": "Sergio Castillo Molina",
 	"license": "ISC",
 	"description": "",
 	"engines": {

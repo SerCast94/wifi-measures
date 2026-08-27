@@ -159,19 +159,27 @@ export class AuditRecommendationService {
   async update(
     auditId: string,
     recommendationId: string,
-    input: Partial<{ text: string; category: RecommendationCategory; accepted: boolean }>
+    input: Partial<{
+      text: string;
+      category: RecommendationCategory;
+      accepted: boolean;
+    }>
   ) {
     const client = this.client;
     if (!client) throw new Error("Base de datos no disponible");
     const recommendation = await client.auditRecommendation.findFirst({
       where: { id: recommendationId, auditId },
     });
-    if (!recommendation) throw new NotFoundException("Recomendación no encontrada");
+    if (!recommendation)
+      throw new NotFoundException("Recomendación no encontrada");
     const data: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(input)) {
       if (value !== undefined) data[key] = value;
     }
-    return client.auditRecommendation.update({ where: { id: recommendationId }, data });
+    return client.auditRecommendation.update({
+      where: { id: recommendationId },
+      data,
+    });
   }
 
   async remove(auditId: string, recommendationId: string) {
@@ -180,8 +188,11 @@ export class AuditRecommendationService {
     const recommendation = await client.auditRecommendation.findFirst({
       where: { id: recommendationId, auditId },
     });
-    if (!recommendation) throw new NotFoundException("Recomendación no encontrada");
-    await client.auditRecommendation.delete({ where: { id: recommendationId } });
+    if (!recommendation)
+      throw new NotFoundException("Recomendación no encontrada");
+    await client.auditRecommendation.delete({
+      where: { id: recommendationId },
+    });
     return { ok: true };
   }
 

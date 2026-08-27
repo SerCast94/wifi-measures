@@ -20,7 +20,12 @@ const makeService = () =>
 
 const measureEntry = (
   raw: RawRecord,
-  overrides: Partial<{ measureId: string; idLinkLive: string | null; label: string | null; floorId: number | null }> = {}
+  overrides: Partial<{
+    measureId: string;
+    idLinkLive: string | null;
+    label: string | null;
+    floorId: number | null;
+  }> = {}
 ) => ({
   measureId: "measure-1",
   idLinkLive: "guid-1",
@@ -30,15 +35,18 @@ const measureEntry = (
   raw,
 });
 
-const byMetric = (results: EvaluationResult[], metric: string): EvaluationResult =>
-  results.filter((result) => result.metric === metric)[0];
+const byMetric = (
+  results: EvaluationResult[],
+  metric: string
+): EvaluationResult => results.filter((result) => result.metric === metric)[0];
 
 describe("AuditEvaluationService · mergeThresholds", () => {
   const service = makeService();
 
   it("sin perfil devuelve los umbrales por defecto", () => {
-    const merged = (service as unknown as { mergeThresholds: (p: unknown) => AuditThresholds })
-      .mergeThresholds(null);
+    const merged = (
+      service as unknown as { mergeThresholds: (p: unknown) => AuditThresholds }
+    ).mergeThresholds(null);
     expect(merged).toEqual(DEFAULT_THRESHOLDS);
   });
 
@@ -53,8 +61,12 @@ describe("AuditEvaluationService · mergeThresholds", () => {
     });
     expect(merged.coverage.rssi.passMin).toBe(-65);
     // warnMin se conserva del defecto
-    expect(merged.coverage.rssi.warnMin).toBe(DEFAULT_THRESHOLDS.coverage.rssi.warnMin);
-    expect(merged.coverage.snr.passMin).toBe(DEFAULT_THRESHOLDS.coverage.snr.passMin);
+    expect(merged.coverage.rssi.warnMin).toBe(
+      DEFAULT_THRESHOLDS.coverage.rssi.warnMin
+    );
+    expect(merged.coverage.snr.passMin).toBe(
+      DEFAULT_THRESHOLDS.coverage.snr.passMin
+    );
     expect(merged.performance.minDownloadMbps).toBe(100);
     expect(merged.radio.channelUtilizationPct.passMax).toBe(
       DEFAULT_THRESHOLDS.radio.channelUtilizationPct.passMax
@@ -148,7 +160,56 @@ describe("AuditEvaluationService · extractFromMeasure", () => {
     });
 
     expect(byMetric(results, "ASSOCIATION").status).toBe("FAIL");
-    expect(byMetric(results, "ASSOCIATION").message).toContain("Authentication");
+    expect(byMetric(results, "ASSOCIATION").message).toContain(
+      "Authentication"
+    );
+  });
+
+  it("conectividad real de Link-Live: tiempos en ms, colores y Success", () => {
+    const results = extract({
+      linkSignalLevelMean: "-61",
+      linkSNRMean: "38",
+      dns: [
+        { dnsIp: "10.0.0.225", dnsColor: "green", dnsConnect: [7] },
+        { dnsIp: "10.0.0.243", dnsColor: "green", dnsConnect: [5] },
+      ],
+      dns1Color: "green",
+      dns2Color: "green",
+      routerConnect: [2, 2, 2],
+      routerColor: "green",
+      dhcpConnect: [],
+      ipConfigFailureReasons: ["Success"],
+      ipConfigIp: "10.100.4.103",
+      dhcpTotalTime: 75,
+      www: [],
+    });
+
+    expect(byMetric(results, "DHCP").status).toBe("PASS");
+    expect(byMetric(results, "DHCP").value).toBe(75);
+    expect(byMetric(results, "DHCP").message).toContain("75 ms");
+    expect(byMetric(results, "GATEWAY").status).toBe("PASS");
+    expect(byMetric(results, "GATEWAY").value).toBe(2);
+    expect(byMetric(results, "DNS").status).toBe("PASS");
+    expect(byMetric(results, "DNS").value).toBe(7);
+    expect(byMetric(results, "INTERNET").status).toBe("WARNING");
+    expect(byMetric(results, "INTERNET").message).toContain("DNS");
+  });
+
+  it("timeout de asociación no inventa conectividad (DHCP/DNS/Gateway)", () => {
+    const results = extract({
+      linkFailureReasons: ["Timeout trying to connect to SSID (19)"],
+      dhcpConnect: [],
+      dns: [],
+      www: [],
+      routerConnect: [],
+      ipConfigFailureReasons: [],
+    });
+
+    expect(byMetric(results, "ASSOCIATION").status).toBe("FAIL");
+    expect(byMetric(results, "DHCP").status).toBe("UNKNOWN");
+    expect(byMetric(results, "DNS").status).toBe("UNKNOWN");
+    expect(byMetric(results, "GATEWAY").status).toBe("UNKNOWN");
+    expect(byMetric(results, "INTERNET").status).toBe("UNKNOWN");
   });
 
   it("rogue APs superan el umbral estricto", () => {
@@ -180,11 +241,110 @@ describe("AuditEvaluationService · extractFromMeasure", () => {
   });
 });
 
+describe("AuditEvaluationService · extractFromMeasure (iPerf)", () => {
+  const service = makeService();
+  const extract = (raw: RawRecord) =>
+    (
+      service as unknown as {
+        extractFromMeasure: (
+          entry: unknown,
+          thresholds: AuditThresholds
+        ) => EvaluationResult[];
+      }
+    ).extractFromMeasure(measureEntry(raw), DEFAULT_THRESHOLDS);
+
+  const iperfRaw: RawRecord = {
+    resultType: "iPerfTest",
+    overallColor: "black",
+    testState: 3,
+    testInterface: "WIFI_PORT",
+    protocol: 0,
+    duration: 10,
+    port: 5201,
+    fileName: "20260827-070809.iperf",
+    downstream: {
+      grade: "black",
+      avgThroughput: "--",
+      avgPacketLoss: "--",
+      avgLoss: "--",
+      maxThroughput: "--",
+      rateValue: 10,
+    },
+    upstream: {
+      grade: "black",
+      avgThroughput: "--",
+      avgPacketLoss: "--",
+      avgLoss: "--",
+      maxThroughput: "--",
+      rateValue: 10,
+    },
+    dns: [],
+    www: [],
+    dhcpConnect: [],
+    routerConnect: [],
+    channelUtilArray: [],
+    rogueAps: [],
+  };
+
+  it("medida iPerf: solo RENDIMIENTO, sin filas de señal/red duplicadas", () => {
+    const results = extract(iperfRaw);
+
+    expect(results.length).toBe(3);
+    expect(results.every((result) => result.category === "RENDIMIENTO")).toBe(
+      true
+    );
+    expect(results.every((result) => result.status === "UNKNOWN")).toBe(true);
+    expect(byMetric(results, "DOWNLOAD").message).toContain("iPerf");
+    expect(byMetric(results, "DOWNLOAD").message).toContain("TCP");
+    expect(byMetric(results, "DOWNLOAD").sourceType).toBe("MEASURE");
+  });
+
+  it("iPerf con throughput numérico: evalúa contra los umbrales del perfil", () => {
+    const results = extract({
+      resultType: "iPerfTest",
+      protocol: 0,
+      duration: 10,
+      port: 5201,
+      downstream: { avgThroughput: 80, avgPacketLoss: 0.3, grade: "green" },
+      upstream: { avgThroughput: 40, avgPacketLoss: 0.2, grade: "green" },
+    });
+
+    expect(byMetric(results, "DOWNLOAD").value).toBe(80);
+    expect(byMetric(results, "DOWNLOAD").status).toBe("PASS");
+    expect(byMetric(results, "UPLOAD").value).toBe(40);
+    expect(byMetric(results, "UPLOAD").status).toBe("PASS");
+    expect(byMetric(results, "PACKET_LOSS").value).toBe(0.3);
+    expect(byMetric(results, "PACKET_LOSS").status).toBe("PASS");
+  });
+
+  it("iPerf por debajo de umbral: FAIL de rendimiento", () => {
+    const results = extract({
+      resultType: "iPerfTest",
+      protocol: 0,
+      downstream: { avgThroughput: 10, avgPacketLoss: 5 },
+      upstream: { avgThroughput: 3 },
+    });
+
+    expect(byMetric(results, "DOWNLOAD").status).toBe("FAIL");
+    expect(byMetric(results, "UPLOAD").status).toBe("FAIL");
+    expect(byMetric(results, "PACKET_LOSS").status).toBe("FAIL");
+  });
+
+  it("sin resultType pero con downstream/upstream: clasificada como iPerf", () => {
+    const results = extract({
+      downstream: { avgThroughput: 60 },
+      upstream: {},
+    });
+    expect(byMetric(results, "DOWNLOAD")).toBeDefined();
+    expect(results.every((result) => result.category === "RENDIMIENTO")).toBe(
+      true
+    );
+  });
+});
+
 describe("AuditEvaluationService · extractFromSurvey", () => {
   const service = makeService();
-  const extract = (
-    points: Array<{ metric: string; value: number | null }>
-  ) =>
+  const extract = (points: Array<{ metric: string; value: number | null }>) =>
     (
       service as unknown as {
         extractFromSurvey: (
@@ -221,7 +381,10 @@ describe("AuditEvaluationService · extractFromSurvey", () => {
   });
 
   it("cobertura conforme con todos los puntos por encima del objetivo", () => {
-    const points = [-50, -52, -54].map((value) => ({ metric: "signal", value }));
+    const points = [-50, -52, -54].map((value) => ({
+      metric: "signal",
+      value,
+    }));
     const results = extract(points);
 
     expect(byMetric(results, "COVERAGE_MIN_RSSI").status).toBe("PASS");
@@ -236,10 +399,7 @@ describe("AuditEvaluationService · extractFromSurvey", () => {
 
 describe("AuditEvaluationService · collectSeriesValues / findWorstChannel", () => {
   const service = makeService();
-  const collect = (
-    series: unknown,
-    keys: string[]
-  ): number[] =>
+  const collect = (series: unknown, keys: string[]): number[] =>
     (
       service as unknown as {
         collectSeriesValues: (series: unknown, keys: string[]) => number[];
@@ -247,16 +407,17 @@ describe("AuditEvaluationService · collectSeriesValues / findWorstChannel", () 
     ).collectSeriesValues(series, keys);
 
   it("colección tolerante a elementos inválidos", () => {
-    expect(collect([null, "x", { util: 5 }, { util: "--" }, { value: 8 }], ["util", "value"])).toEqual([
-      5, 8,
-    ]);
+    expect(
+      collect(
+        [null, "x", { util: 5 }, { util: "--" }, { value: 8 }],
+        ["util", "value"]
+      )
+    ).toEqual([5, 8]);
     expect(collect("--", ["util"])).toEqual([]);
   });
 
   it("identifica el peor canal", () => {
-    const findWorst = (
-      series: unknown
-    ): string | null =>
+    const findWorst = (series: unknown): string | null =>
       (
         service as unknown as {
           findWorstChannel: (series: unknown, keys: string[]) => string | null;

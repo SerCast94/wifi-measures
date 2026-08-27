@@ -84,7 +84,10 @@ export const PROFILE_PRESETS: ProfilePreset[] = [
     auditType: "ADMINISTRACION_PUBLICA",
     description: "Edificios públicos; margen reducido en cobertura mínima.",
     thresholds: merge(DEFAULT_THRESHOLDS, {
-      coverage: { rssi: { passMin: -65, warnMin: -70 }, snr: { passMin: 25, warnMin: 20 } },
+      coverage: {
+        rssi: { passMin: -65, warnMin: -70 },
+        snr: { passMin: 25, warnMin: 20 },
+      },
     }),
   },
   {
@@ -109,13 +112,17 @@ export const PROFILE_PRESETS: ProfilePreset[] = [
     auditType: "INDUSTRIA",
     description: "Naves industriales; tolera RSSI menor pero exige SNR.",
     thresholds: merge(DEFAULT_THRESHOLDS, {
-      coverage: { rssi: { passMin: -72, warnMin: -78 }, snr: { passMin: 20, warnMin: 16 } },
+      coverage: {
+        rssi: { passMin: -72, warnMin: -78 },
+        snr: { passMin: 20, warnMin: 16 },
+      },
     }),
   },
   {
     name: "Alta densidad",
     auditType: "ALTA_DENSIDAD",
-    description: "Estadios, auditorios, eventos: prioriza utilización de canal.",
+    description:
+      "Estadios, auditorios, eventos: prioriza utilización de canal.",
     thresholds: merge(DEFAULT_THRESHOLDS, {
       radio: {
         channelUtilizationPct: { passMax: 40, warnMax: 60 },
@@ -129,7 +136,10 @@ export const PROFILE_PRESETS: ProfilePreset[] = [
     auditType: "VOZ_VOIP",
     description: "Telefonía Wi-Fi: RSSI y latencia estrictos.",
     thresholds: merge(DEFAULT_THRESHOLDS, {
-      coverage: { rssi: { passMin: -67, warnMin: -70 }, snr: { passMin: 25, warnMin: 22 } },
+      coverage: {
+        rssi: { passMin: -67, warnMin: -70 },
+        snr: { passMin: 25, warnMin: 22 },
+      },
       performance: { maxLatencyMs: 30, maxPacketLossPct: 0.5 },
     }),
   },

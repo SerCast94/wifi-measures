@@ -33,9 +33,9 @@ describe("Health (e2e)", () => {
       .get("/api/v1/csrf/token")
       .expect(200);
     const cookies = response.headers["set-cookie"];
-    const csrfCookie = ([] as string[]).concat(cookies ?? []).find((cookie) =>
-      cookie.toLowerCase().includes("csrf")
-    );
+    const csrfCookie = ([] as string[])
+      .concat(cookies ?? [])
+      .find((cookie) => cookie.toLowerCase().includes("csrf"));
     expect(csrfCookie).toBeDefined();
   });
 });

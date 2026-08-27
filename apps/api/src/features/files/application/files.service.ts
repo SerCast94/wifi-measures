@@ -21,7 +21,11 @@ export function normalizeAttachments(raw: unknown): NormalizedAttachment[] {
       const record = item as Record<string, unknown>;
       const href = String(record.href ?? record.url ?? record.link ?? "");
       const name = String(
-        record.name ?? record.filename ?? record.fileName ?? href.split("/").pop() ?? "archivo"
+        record.name ??
+          record.filename ??
+          record.fileName ??
+          href.split("/").pop() ??
+          "archivo"
       );
       if (href) out.push({ name, href });
     }

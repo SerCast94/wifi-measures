@@ -35,8 +35,17 @@ export const UnitFiles = ({ files }: { files: UploadedFile[] }) => {
           key={file.id}
           className="flex items-center gap-3 p-3 rounded-md border bg-muted/40"
         >
-          <div className="flex items-center justify-center w-9 h-9 rounded-md bg-background shrink-0">
-            {file.format === "image" ? (
+          <div className="flex items-center justify-center w-10 h-10 rounded-md bg-background shrink-0 overflow-hidden border border-border">
+            {file.format === "image" && (file.thumb || file.mediumImage || file.href) ? (
+              <img
+                src={file.thumb || file.mediumImage || file.href || undefined}
+                alt={file.name}
+                className="w-full h-full object-cover"
+                onError={(event) => {
+                  event.currentTarget.style.display = "none";
+                }}
+              />
+            ) : file.format === "image" ? (
               <Image className="w-4 h-4" />
             ) : (
               <FileText className="w-4 h-4" />

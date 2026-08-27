@@ -53,21 +53,27 @@ export class AuditReportService {
     );
     const include = (section: ReportSection) => wanted.has(section);
 
-    const [evaluations, issues, recommendations, conclusion, members, dashboard] =
-      await Promise.all([
-        client.auditEvaluation.findMany({
-          where: { auditId },
-          orderBy: [{ category: "asc" }, { metric: "asc" }],
-        }),
-        client.auditIssue.findMany({ where: { auditId } }),
-        client.auditRecommendation.findMany({
-          where: { auditId },
-          orderBy: { sortOrder: "asc" },
-        }),
-        client.auditConclusion.findUnique({ where: { auditId } }),
-        this.auditsService.getMembers(auditId),
-        this.auditsService.getDashboard(auditId),
-      ]);
+    const [
+      evaluations,
+      issues,
+      recommendations,
+      conclusion,
+      members,
+      dashboard,
+    ] = await Promise.all([
+      client.auditEvaluation.findMany({
+        where: { auditId },
+        orderBy: [{ category: "asc" }, { metric: "asc" }],
+      }),
+      client.auditIssue.findMany({ where: { auditId } }),
+      client.auditRecommendation.findMany({
+        where: { auditId },
+        orderBy: { sortOrder: "asc" },
+      }),
+      client.auditConclusion.findUnique({ where: { auditId } }),
+      this.auditsService.getMembers(auditId),
+      this.auditsService.getDashboard(auditId),
+    ]);
 
     const floors = await client.auditFloor.findMany({
       where: { auditId },
@@ -116,7 +122,8 @@ export class AuditReportService {
           ssids: dashboard.discovery.ssids,
           clients: dashboard.discovery.clients,
           floors: dashboard.discovery.floors,
-          issues: issues.filter((issue: any) => issue.state !== "DESCARTADA").length,
+          issues: issues.filter((issue: any) => issue.state !== "DESCARTADA")
+            .length,
         },
         globalResult: conclusion?.globalResult ?? null,
         checklistPct: dashboard.checklist.pct,
@@ -131,7 +138,9 @@ export class AuditReportService {
       recomendaciones: [] as Array<{ category: string; items: unknown[] }>,
       conclusiones: conclusion ?? null,
       anexos: {
-        audit: Array.isArray((audit as any).anexos) ? ((audit as any).anexos as unknown[]) : [],
+        audit: Array.isArray((audit as any).anexos)
+          ? ((audit as any).anexos as unknown[])
+          : [],
         evaluations: evaluations.map((evaluation: any) => ({
           category: evaluation.category,
           metric: evaluation.metric,
@@ -145,13 +154,15 @@ export class AuditReportService {
           runAt: evaluation.runAt,
         })),
         members: {
-          measures: (members.measures as Array<{ measure: Record<string, unknown> }>).map((link) => link.measure),
+          measures: (
+            members.measures as Array<{ measure: Record<string, unknown> }>
+          ).map((link) => link.measure),
           surveys: (
             members.surveys as Array<{ survey: Record<string, unknown> }>
           ).map((link) => ({ ...link.survey, image: undefined })),
-          analyses: (members.analyses as Array<{ analysis: Record<string, unknown> }>).map(
-            (link) => link.analysis
-          ),
+          analyses: (
+            members.analyses as Array<{ analysis: Record<string, unknown> }>
+          ).map((link) => link.analysis),
         },
       },
       dataQuality: await this.dataQualityService.check(auditId),
@@ -159,13 +170,24 @@ export class AuditReportService {
 
     // ---- Cobertura por encuesta (incluye plano y puntos para el heatmap) ----
     if (include("cobertura")) {
-      const surveyEvaluations = evaluations.filter((evaluation: any) => evaluation.category === "COBERTURA");
+      const surveyEvaluations = evaluations.filter(
+        (evaluation: any) => evaluation.category === "COBERTURA"
+      );
       for (const link of members.surveys as Array<{
         surveyId: number;
         floorId: number | null;
-        survey: { id: number; idLinkLive: string; name: string | null; surveyName: string | null; image?: string; surveyPointCount: number };
+        survey: {
+          id: number;
+          idLinkLive: string;
+          name: string | null;
+          surveyName: string | null;
+          image?: string;
+          surveyPointCount: number;
+        };
       }>) {
-        const rows = surveyEvaluations.filter((evaluation: any) => evaluation.sourceGuid === link.survey.idLinkLive);
+        const rows = surveyEvaluations.filter(
+          (evaluation: any) => evaluation.sourceGuid === link.survey.idLinkLive
+        );
         const [surveyRow] = await client.linkLiveSurvey.findMany({
           where: { id: link.surveyId },
           select: {
@@ -182,8 +204,14 @@ export class AuditReportService {
         data.cobertura.push({
           surveyId: link.survey.id,
           guid: link.survey.idLinkLive,
-          name: link.survey.name ?? link.survey.surveyName ?? `Survey ${link.survey.id}`,
-          floorName: link.floorId !== null ? floorNameById.get(link.floorId) ?? null : null,
+          name:
+            link.survey.name ??
+            link.survey.surveyName ??
+            `Survey ${link.survey.id}`,
+          floorName:
+            link.floorId !== null
+              ? (floorNameById.get(link.floorId) ?? null)
+              : null,
           hasFloorPlanImage: Boolean(link.survey.image),
           image: surveyRow?.image ?? null,
           floorPlanWidth: surveyRow?.floorPlanWidth ?? null,
@@ -212,7 +240,17 @@ export class AuditReportService {
     if (include("radio") || include("descubrimiento")) {
       const analysisLinks = await client.auditAnalysis.findMany({
         where: { auditId },
-        include: { analysis: { select: { id: true, idLinkLive: true, name: true, startTime: true, unitName: true } } },
+        include: {
+          analysis: {
+            select: {
+              id: true,
+              idLinkLive: true,
+              name: true,
+              startTime: true,
+              unitName: true,
+            },
+          },
+        },
       });
 
       if (include("radio")) {
@@ -232,7 +270,6 @@ export class AuditReportService {
             guid: link.analysis.idLinkLive,
             name: link.analysis.name,
             startTime: link.analysis.startTime,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             unitName: (link.analysis as any).unitName ?? null,
             hosts: hosts.map((host: any) => ({
               hostType: host.hostType,
@@ -251,32 +288,104 @@ export class AuditReportService {
         }
         data.analisisDetalle = analisisDetalle;
 
+        // Señal (dBm) por canal: las filas "channel" del análisis no traen
+        // nivel propio, se toma la mejor señal observada en ese canal (banda)
+        // a partir de las redes detectadas (ap / bssid / ssid).
+        const bestChannelSignal = new Map<string, number>();
         for (const link of analysisLinks) {
           const hosts = await client.linkLiveAnalysisHost.findMany({
             where: { analysisId: link.analysis.id },
           });
           for (const host of hosts) {
+            if (
+              ["ap", "bssid", "ssid"].includes(host.hostType) &&
+              host.signal !== null &&
+              host.band != null &&
+              host.channel != null
+            ) {
+              const key = `${host.band}|${host.channel}`;
+              const current = bestChannelSignal.get(key);
+              if (
+                current === undefined ||
+                Number(host.signal) > Number(current)
+              ) {
+                bestChannelSignal.set(key, Number(host.signal));
+              }
+            }
             if (host.hostType === "channel") {
-              channelRows.push(this.pick(host as any, ["channel", "band", "signal", "snr", "counts"]));
+              channelRows.push(
+                this.pick(host as any, [
+                  "channel",
+                  "band",
+                  "signal",
+                  "snr",
+                  "counts",
+                ])
+              );
             } else if (host.hostType === "ssid") {
-              ssidRows.push(this.pick(host as any, ["ssid", "securityType", "band", "signal", "snr", "protocol", "counts"]));
+              ssidRows.push(
+                this.pick(host as any, [
+                  "ssid",
+                  "securityType",
+                  "band",
+                  "signal",
+                  "snr",
+                  "protocol",
+                  "counts",
+                ])
+              );
             } else if (host.hostType === "ap") {
-              apRows.push(this.pick(host as any, ["name", "mac", "channel", "band", "signal", "snr", "ssid", "securityType", "counts"]));
+              apRows.push(
+                this.pick(host as any, [
+                  "name",
+                  "mac",
+                  "channel",
+                  "band",
+                  "signal",
+                  "snr",
+                  "ssid",
+                  "securityType",
+                  "counts",
+                ])
+              );
             }
           }
         }
 
+        for (const row of channelRows) {
+          const anyRow = row as { band?: unknown; channel?: unknown };
+          const key = `${String(anyRow.band ?? "")}|${String(
+            anyRow.channel ?? ""
+          )}`;
+          const signal = bestChannelSignal.get(key);
+          if (signal !== undefined) {
+            (row as { signal?: unknown }).signal = signal;
+          }
+        }
+        channelRows.sort(
+          (a, b) =>
+            Number((b as { signal?: unknown }).signal ?? -999) -
+            Number((a as { signal?: unknown }).signal ?? -999)
+        );
+
         const security = await this.securitySummary(auditId);
         data.radio = {
-          channels: channelRows.slice(0, 100),
+          channels: channelRows
+            .filter((row) => (row as { signal?: unknown }).signal != null)
+            .slice(0, 14),
           ssids: ssidRows.slice(0, 100),
           aps: apRows.slice(0, 200),
           security,
           interference: (evaluations as any[])
-            .filter((evaluation) =>
-              ["CHANNEL_UTILIZATION", "CO_CHANNEL_INTERFERENCE", "ADJACENT_CHANNEL_INTERFERENCE", "ROGUE_APS", "NON_WIFI_UTILIZATION"].includes(
-                evaluation.metric
-              ) && evaluation.status !== "UNKNOWN"
+            .filter(
+              (evaluation) =>
+                [
+                  "CHANNEL_UTILIZATION",
+                  "CO_CHANNEL_INTERFERENCE",
+                  "ADJACENT_CHANNEL_INTERFERENCE",
+                  "ROGUE_APS",
+                  "NON_WIFI_UTILIZATION",
+                ].includes(evaluation.metric) && evaluation.status !== "UNKNOWN"
             )
             .map((row) => ({
               metric: row.metric,
@@ -310,11 +419,14 @@ export class AuditReportService {
     }
 
     // ---- Incidencias y recomendaciones ----
-    const activeIssues = (issues as any[]).filter((issue) => issue.state !== "DESCARTADA");
+    const activeIssues = (issues as any[]).filter(
+      (issue) => issue.state !== "DESCARTADA"
+    );
     data.incidencias = activeIssues
       .sort(
         (a: any, b: any) =>
-          SEVERITY_ORDER[a.severity as IssueSeverity] - SEVERITY_ORDER[b.severity as IssueSeverity]
+          SEVERITY_ORDER[a.severity as IssueSeverity] -
+          SEVERITY_ORDER[b.severity as IssueSeverity]
       )
       .map((issue: any) => ({
         id: issue.id,
@@ -324,7 +436,9 @@ export class AuditReportService {
         type: issue.type,
         title: issue.title,
         description: issue.description,
-        location: issue.locationLabel ?? (issue.floorId !== null ? floorNameById.get(issue.floorId) : null),
+        location:
+          issue.locationLabel ??
+          (issue.floorId !== null ? floorNameById.get(issue.floorId) : null),
         metric: issue.metric,
         value: issue.value,
         unit: issue.unit,
@@ -332,22 +446,31 @@ export class AuditReportService {
         photo: issue.photo,
       }));
 
-    data.recomendaciones = ["INMEDIATA", "OPTIMIZACION", "INFRAESTRUCTURA"].map((category) => ({
-      category,
-      items: (recommendations as any[])
-        .filter((recommendation) => recommendation.category === category && recommendation.accepted !== false)
-        .map((recommendation) => ({
-          id: recommendation.id,
-          text: recommendation.text,
-          origin: recommendation.origin,
-          basis: recommendation.basis,
-        })),
-    }));
+    data.recomendaciones = ["INMEDIATA", "OPTIMIZACION", "INFRAESTRUCTURA"].map(
+      (category) => ({
+        category,
+        items: (recommendations as any[])
+          .filter(
+            (recommendation) =>
+              recommendation.category === category &&
+              recommendation.accepted !== false
+          )
+          .map((recommendation) => ({
+            id: recommendation.id,
+            text: recommendation.text,
+            origin: recommendation.origin,
+            basis: recommendation.basis,
+          })),
+      })
+    );
 
     return data;
   }
 
-  private pick(record: Record<string, unknown>, keys: string[]): Record<string, unknown> {
+  private pick(
+    record: Record<string, unknown>,
+    keys: string[]
+  ): Record<string, unknown> {
     const out: Record<string, unknown> = {};
     for (const key of keys) {
       out[key] = record[key] ?? null;
@@ -357,11 +480,20 @@ export class AuditReportService {
 
   private buildConnectivityMatrix(evaluations: any[]) {
     const byPoint = new Map<string, Record<string, unknown>>();
-    const metricsOrder = ["ASSOCIATION", "DHCP", "GATEWAY", "DNS", "INTERNET", "HTTP_HTTPS"];
+    const metricsOrder = [
+      "ASSOCIATION",
+      "DHCP",
+      "GATEWAY",
+      "DNS",
+      "INTERNET",
+      "HTTP_HTTPS",
+    ];
 
     for (const evaluation of evaluations) {
       if (evaluation.category !== "CONECTIVIDAD") continue;
-      const key = String(evaluation.sourceGuid ?? evaluation.locationLabel ?? "—");
+      const key = String(
+        evaluation.sourceGuid ?? evaluation.locationLabel ?? "—"
+      );
       let row = byPoint.get(key);
       if (!row) {
         row = {
@@ -384,7 +516,9 @@ export class AuditReportService {
   }
 
   private buildPerformance(evaluations: any[]) {
-    const rows = evaluations.filter((evaluation) => evaluation.category === "RENDIMIENTO");
+    const rows = evaluations.filter(
+      (evaluation) => evaluation.category === "RENDIMIENTO"
+    );
     const performed = rows.some((row) => row.status !== "UNKNOWN");
     return {
       performed,
@@ -404,7 +538,9 @@ export class AuditReportService {
   }
 
   private buildRoaming(evaluations: any[]) {
-    const row = evaluations.find((evaluation) => evaluation.metric === "ROAMING");
+    const row = evaluations.find(
+      (evaluation) => evaluation.metric === "ROAMING"
+    );
     return {
       performed: Boolean(row && row.status !== "UNKNOWN"),
       note:
@@ -415,7 +551,9 @@ export class AuditReportService {
     };
   }
 
-  private async securitySummary(auditId: string): Promise<Array<{ type: string; count: number }>> {
+  private async securitySummary(
+    auditId: string
+  ): Promise<Array<{ type: string; count: number }>> {
     const client = this.client;
     if (!client) return [];
     const grouped = await client.linkLiveAnalysisHost.groupBy({
@@ -450,7 +588,10 @@ export class AuditReportService {
 
     // Generar informe marca el estado si la auditoría está completada.
     if (["COMPLETADA", "PENDIENTE_DE_REVISION"].includes(audit.status)) {
-      await client.audit.update({ where: { id: auditId }, data: { status: "INFORME_GENERADO" } });
+      await client.audit.update({
+        where: { id: auditId },
+        data: { status: "INFORME_GENERADO" },
+      });
     }
     return report;
   }
@@ -478,14 +619,21 @@ export class AuditReportService {
     await this.auditsService.getByIdOrThrow(auditId);
     const client = this.client;
     if (!client) throw new Error("Base de datos no disponible");
-    const existing = await client.auditConclusion.findUnique({ where: { auditId } });
-    if (!existing) throw new NotFoundException("Conclusión no generada todavía");
+    const existing = await client.auditConclusion.findUnique({
+      where: { auditId },
+    });
+    if (!existing)
+      throw new NotFoundException("Conclusión no generada todavía");
 
     return client.auditConclusion.update({
       where: { auditId },
       data: {
-        ...(input.finalText !== undefined ? { finalText: input.finalText, editedAt: new Date() } : {}),
-        ...(input.globalResult !== undefined ? { globalResult: input.globalResult } : {}),
+        ...(input.finalText !== undefined
+          ? { finalText: input.finalText, editedAt: new Date() }
+          : {}),
+        ...(input.globalResult !== undefined
+          ? { globalResult: input.globalResult }
+          : {}),
       },
     });
   }

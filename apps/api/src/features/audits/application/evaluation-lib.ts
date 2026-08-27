@@ -189,7 +189,14 @@ export function unknownResult(
 }
 
 const POSITIVE_HINTS = ["ok", "success", "pass", "green", "true", "correct"];
-const NEGATIVE_HINTS = ["fail", "error", "timeout", "unreachable", "red", "false"];
+const NEGATIVE_HINTS = [
+  "fail",
+  "error",
+  "timeout",
+  "unreachable",
+  "red",
+  "false",
+];
 
 /**
  * Interpreta un array de resultados de conectividad del raw (dhcpConnect, dns,
@@ -213,16 +220,26 @@ export function interpretConnectivityArray(arr: unknown): {
     for (const [key, rawValue] of Object.entries(record)) {
       const valueStr = String(rawValue ?? "").toLowerCase();
       if (!valueStr) continue;
-      if (POSITIVE_HINTS.some((hint) => valueStr.includes(hint))) positives += 1;
-      else if (NEGATIVE_HINTS.some((hint) => valueStr.includes(hint))) negatives += 1;
+      if (POSITIVE_HINTS.some((hint) => valueStr.includes(hint)))
+        positives += 1;
+      else if (NEGATIVE_HINTS.some((hint) => valueStr.includes(hint)))
+        negatives += 1;
       if (/^(color|status|state|result)$/i.test(key)) break;
     }
   }
   if (positives > 0 && negatives === 0) {
-    return { ran: true, status: "PASS", detail: `${arr.length} comprobación(es) correctas` };
+    return {
+      ran: true,
+      status: "PASS",
+      detail: `${arr.length} comprobación(es) correctas`,
+    };
   }
   if (negatives > 0 && positives === 0) {
-    return { ran: true, status: "FAIL", detail: `${arr.length} comprobación(es) con fallo` };
+    return {
+      ran: true,
+      status: "FAIL",
+      detail: `${arr.length} comprobación(es) con fallo`,
+    };
   }
   return {
     ran: true,
@@ -232,11 +249,142 @@ export function interpretConnectivityArray(arr: unknown): {
 }
 
 /**
+ * Interpreta la señal de conectividad de una prueba del raw tolerando los
+ * formatos reales de Link-Live que el análisis genérico no captura:
+ *  - arrays numéricos (tiempos de respuesta en ms del gateway/DNS), donde el
+ *    mero hecho de recibir respuesta implica prueba realizada y correcta;
+ *  - campos de color a nivel superior (dnsColor, routerColor, ipConfigColor,
+ *    webColor...) que confirman el resultado cuando el array viene vacío;
+ *  - ipConfigFailureReasons=["Success"] / presencia de ipConfigIp para
+ *    confirmar que la configuración IP (y con ella DHCP) terminó con éxito.
+ */
+export function interpretConnectivitySignal(
+  key: string,
+  raw: Record<string, unknown>
+): {
+  ran: boolean;
+  status: EvaluationStatus;
+  detail: string;
+  latencyMs: number | null;
+} {
+  const direct = raw[key];
+
+  if (
+    Array.isArray(direct) &&
+    direct.length > 0 &&
+    direct.every((item) => typeof item === "number")
+  ) {
+    const nums = direct as number[];
+    const ms = Math.round(Math.max(...nums));
+    return {
+      ran: true,
+      status: "PASS",
+      detail: `${nums.length} respuesta(s) en ${ms} ms`,
+      latencyMs: ms,
+    };
+  }
+
+  const generic = interpretConnectivityArray(direct);
+
+  const colorKeys: Record<string, string[]> = {
+    dns: ["dnsColor", "dns1Color", "dns2Color"],
+    routerConnect: ["routerColor"],
+    dhcpConnect: ["ipConfigColor", "dhcpColor"],
+    www: ["webColor", "wwwColor", "httpColor"],
+  };
+  let colorStatus: EvaluationStatus | null = null;
+  for (const field of colorKeys[key] ?? []) {
+    const text = String(raw[field] ?? "").toLowerCase();
+    if (POSITIVE_HINTS.some((hint) => text.includes(hint))) {
+      colorStatus = "PASS";
+      break;
+    }
+    if (NEGATIVE_HINTS.some((hint) => text.includes(hint))) {
+      colorStatus = "FAIL";
+      break;
+    }
+  }
+
+  let reasonsStatus: EvaluationStatus | null = null;
+  if (key === "dhcpConnect") {
+    const reasons = raw["ipConfigFailureReasons"];
+    if (Array.isArray(reasons) && reasons.length > 0) {
+      const texts = reasons.map((item) => String(item ?? "").toLowerCase());
+      const anyPositive = texts.some((text) =>
+        POSITIVE_HINTS.some((hint) => text.includes(hint))
+      );
+      const anyNegative = texts.some((text) =>
+        NEGATIVE_HINTS.some((hint) => text.includes(hint))
+      );
+      if (anyPositive && !anyNegative) reasonsStatus = "PASS";
+    }
+  }
+
+  let configStatus: EvaluationStatus | null = null;
+  if (
+    key === "dhcpConnect" &&
+    typeof raw["ipConfigIp"] === "string" &&
+    raw["ipConfigIp"].trim().length > 0
+  ) {
+    configStatus = "PASS";
+  }
+
+  const status =
+    generic.status === "PASS" || generic.status === "FAIL"
+      ? generic.status
+      : (colorStatus ?? reasonsStatus ?? configStatus ?? "UNKNOWN");
+  const ran = generic.ran || status !== "UNKNOWN";
+
+  const latencyMs = (() => {
+    const numbers: number[] = [];
+    const walk = (value: unknown): void => {
+      if (typeof value === "number") numbers.push(value);
+      else if (Array.isArray(value)) value.forEach(walk);
+      else if (value && typeof value === "object")
+        Object.values(value).forEach(walk);
+    };
+    if (key === "dhcpConnect") {
+      walk(raw["dhcpConnect"]);
+      walk(raw["dhcpTotalTime"]);
+    } else if (key === "dns") {
+      walk(raw["dns"]);
+      walk(raw["dnsConnect"]);
+      walk(raw["dns1Connect"]);
+      walk(raw["dns2Connect"]);
+    } else {
+      walk(raw[key]);
+    }
+    return numbers.length ? Math.round(Math.max(...numbers)) : null;
+  })();
+
+  let detail: string;
+  if (status === "PASS") {
+    detail = generic.status === "PASS" ? generic.detail : "Prueba correcta";
+    if (latencyMs !== null) detail = `${detail} (${latencyMs} ms)`;
+  } else if (status === "FAIL") {
+    detail =
+      generic.status === "FAIL" ? generic.detail : "Fallo en la comprobación";
+  } else {
+    detail = "Prueba no realizada";
+  }
+
+  return {
+    ran,
+    status,
+    detail,
+    latencyMs: status === "PASS" ? latencyMs : null,
+  };
+}
+
+/**
  * Señales secundarias: los motivos de fallo del equipo (ipConfigFailureReasons,
  * linkFailureReasons...) permiten confirmar fallos cuando el array principal
  * viene vacío.
  */
-export function reasonsHintFailure(reasons: unknown, keywords: string[]): string | null {
+export function reasonsHintFailure(
+  reasons: unknown,
+  keywords: string[]
+): string | null {
   if (!Array.isArray(reasons)) return null;
   for (const reason of reasons) {
     const text = String(reason ?? "");

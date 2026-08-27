@@ -29,7 +29,8 @@ const ISSUE_RULES: IssueRule[] = [
     severityFor: { FAIL: "HIGH", WARNING: "LOW" },
     type: "COBERTURA",
     title: "Señal insuficiente (RSSI)",
-    description: "La potencia de señal recibida está por debajo del nivel recomendado en el punto de medida.",
+    description:
+      "La potencia de señal recibida está por debajo del nivel recomendado en el punto de medida.",
   },
   {
     metric: "SNR",
@@ -37,7 +38,8 @@ const ISSUE_RULES: IssueRule[] = [
     severityFor: { FAIL: "HIGH", WARNING: "LOW" },
     type: "COBERTURA",
     title: "SNR insuficiente",
-    description: "La relación señal/ruido está por debajo del objetivo; posible interferencia o cobertura débil.",
+    description:
+      "La relación señal/ruido está por debajo del objetivo; posible interferencia o cobertura débil.",
   },
   {
     metric: "CHANNEL_UTILIZATION",
@@ -45,7 +47,8 @@ const ISSUE_RULES: IssueRule[] = [
     severityFor: { FAIL: "MEDIUM", WARNING: "LOW" },
     type: "RADIO",
     title: "Canal saturado",
-    description: "La utilización del canal supera el umbral definido para el perfil de auditoría.",
+    description:
+      "La utilización del canal supera el umbral definido para el perfil de auditoría.",
   },
   {
     metric: "NON_WIFI_UTILIZATION",
@@ -53,7 +56,8 @@ const ISSUE_RULES: IssueRule[] = [
     severityFor: { FAIL: "MEDIUM", WARNING: "LOW" },
     type: "RADIO",
     title: "Utilización no Wi-Fi elevada",
-    description: "Se detecta ocupación espectral no Wi-Fi relevante en los canales analizados.",
+    description:
+      "Se detecta ocupación espectral no Wi-Fi relevante en los canales analizados.",
   },
   {
     metric: "CO_CHANNEL_INTERFERENCE",
@@ -61,7 +65,8 @@ const ISSUE_RULES: IssueRule[] = [
     severityFor: { FAIL: "MEDIUM", WARNING: "LOW" },
     type: "RADIO",
     title: "Exceso de interferencia co-canal",
-    description: "Demasiadas redes compartiendo el mismo canal; degrada el rendimiento disponible.",
+    description:
+      "Demasiadas redes compartiendo el mismo canal; degrada el rendimiento disponible.",
   },
   {
     metric: "ADJACENT_CHANNEL_INTERFERENCE",
@@ -69,7 +74,8 @@ const ISSUE_RULES: IssueRule[] = [
     severityFor: { FAIL: "LOW", WARNING: "INFO" },
     type: "RADIO",
     title: "Interferencia de canal adyacente",
-    description: "Redes en canales adyacentes con solapamiento espectral apreciable.",
+    description:
+      "Redes en canales adyacentes con solapamiento espectral apreciable.",
   },
   {
     metric: "ROGUE_APS",
@@ -77,7 +83,8 @@ const ISSUE_RULES: IssueRule[] = [
     severityFor: { FAIL: "MEDIUM", WARNING: "LOW" },
     type: "RADIO",
     title: "Puntos de acceso no autorizados",
-    description: "Se han detectado APs clasificados como rogue por el equipo de medida.",
+    description:
+      "Se han detectado APs clasificados como rogue por el equipo de medida.",
   },
   {
     metric: "DHCP",
@@ -85,7 +92,8 @@ const ISSUE_RULES: IssueRule[] = [
     severityFor: { FAIL: "HIGH", WARNING: "MEDIUM" },
     type: "CONECTIVIDAD",
     title: "Fallo de DHCP",
-    description: "El equipo no obtuvo configuración IP mediante DHCP en el punto comprobado.",
+    description:
+      "El equipo no obtuvo configuración IP mediante DHCP en el punto comprobado.",
   },
   {
     metric: "GATEWAY",
@@ -93,7 +101,8 @@ const ISSUE_RULES: IssueRule[] = [
     severityFor: { FAIL: "HIGH", WARNING: "MEDIUM" },
     type: "CONECTIVIDAD",
     title: "Gateway inaccesible",
-    description: "No se alcanza la pasarela por defecto desde el punto de medida.",
+    description:
+      "No se alcanza la pasarela por defecto desde el punto de medida.",
   },
   {
     metric: "DNS",
@@ -101,7 +110,8 @@ const ISSUE_RULES: IssueRule[] = [
     severityFor: { FAIL: "HIGH", WARNING: "MEDIUM" },
     type: "CONECTIVIDAD",
     title: "Fallo de resolución DNS",
-    description: "Las consultas DNS no se resuelven correctamente en el punto comprobado.",
+    description:
+      "Las consultas DNS no se resuelven correctamente en el punto comprobado.",
   },
   {
     metric: "INTERNET",
@@ -109,7 +119,8 @@ const ISSUE_RULES: IssueRule[] = [
     severityFor: { FAIL: "CRITICAL", WARNING: "HIGH" },
     type: "CONECTIVIDAD",
     title: "Sin acceso a Internet",
-    description: "No hay salida a Internet verificable desde el punto de medida.",
+    description:
+      "No hay salida a Internet verificable desde el punto de medida.",
   },
   {
     metric: "HTTP_HTTPS",
@@ -117,7 +128,8 @@ const ISSUE_RULES: IssueRule[] = [
     severityFor: { FAIL: "HIGH", WARNING: "MEDIUM" },
     type: "CONECTIVIDAD",
     title: "Fallo de acceso HTTP/HTTPS",
-    description: "El tráfico web no funciona correctamente en el punto comprobado.",
+    description:
+      "El tráfico web no funciona correctamente en el punto comprobado.",
   },
   {
     metric: "ASSOCIATION",
@@ -133,7 +145,17 @@ const ISSUE_RULES: IssueRule[] = [
     severityFor: { FAIL: "MEDIUM", WARNING: "LOW" },
     type: "RENDIMIENTO",
     title: "Throughput de descarga insuficiente",
-    description: "El ancho de banda de descarga medido está por debajo del mínimo definido.",
+    description:
+      "El ancho de banda de descarga medido está por debajo del mínimo definido.",
+  },
+  {
+    metric: "UPLOAD",
+    statuses: ["FAIL", "WARNING"],
+    severityFor: { FAIL: "MEDIUM", WARNING: "LOW" },
+    type: "RENDIMIENTO",
+    title: "Throughput de subida insuficiente",
+    description:
+      "El ancho de banda de subida medido está por debajo del mínimo definido.",
   },
   {
     metric: "LATENCY",
@@ -157,7 +179,8 @@ const ISSUE_RULES: IssueRule[] = [
     severityFor: { FAIL: "HIGH", WARNING: "MEDIUM" },
     type: "COBERTURA",
     title: "Zonas con cobertura deficiente",
-    description: "Un porcentaje significativo de puntos del mapa de calor no alcanza el objetivo de cobertura.",
+    description:
+      "Un porcentaje significativo de puntos del mapa de calor no alcanza el objetivo de cobertura.",
   },
 ];
 
@@ -180,7 +203,8 @@ export class AuditIssueService {
     });
     return issues.sort(
       (a: any, b: any) =>
-        SEVERITY_ORDER[a.severity as IssueSeverity] - SEVERITY_ORDER[b.severity as IssueSeverity]
+        SEVERITY_ORDER[a.severity as IssueSeverity] -
+        SEVERITY_ORDER[b.severity as IssueSeverity]
     );
   }
 
@@ -240,7 +264,9 @@ export class AuditIssueService {
   ) {
     const client = this.client;
     if (!client) throw new Error("Base de datos no disponible");
-    const issue = await client.auditIssue.findFirst({ where: { id: issueId, auditId } });
+    const issue = await client.auditIssue.findFirst({
+      where: { id: issueId, auditId },
+    });
     if (!issue) throw new NotFoundException("Incidencia no encontrada");
 
     const data: Record<string, unknown> = {};
@@ -248,7 +274,11 @@ export class AuditIssueService {
       if (value !== undefined) data[key] = value;
     }
     // Si el técnico edita una sugerida, pasa a MODIFICADA.
-    if (issue.state === "SUGERIDA" && !input.state && Object.keys(data).length > 0) {
+    if (
+      issue.state === "SUGERIDA" &&
+      !input.state &&
+      Object.keys(data).length > 0
+    ) {
       data.state = "MODIFICADA";
     }
     return client.auditIssue.update({ where: { id: issueId }, data });
@@ -257,7 +287,9 @@ export class AuditIssueService {
   async remove(auditId: string, issueId: string) {
     const client = this.client;
     if (!client) throw new Error("Base de datos no disponible");
-    const issue = await client.auditIssue.findFirst({ where: { id: issueId, auditId } });
+    const issue = await client.auditIssue.findFirst({
+      where: { id: issueId, auditId },
+    });
     if (!issue) throw new NotFoundException("Incidencia no encontrada");
     await client.auditIssue.delete({ where: { id: issueId } });
     return { ok: true };
@@ -329,7 +361,8 @@ export class AuditIssueService {
           metric: result.metric,
           value: result.value,
           unit: result.unit,
-          threshold: (result.threshold ?? undefined) as unknown as Prisma.InputJsonValue,
+          threshold: (result.threshold ??
+            undefined) as unknown as Prisma.InputJsonValue,
           evidence: {
             key,
             evaluationMetric: result.metric,
