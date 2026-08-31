@@ -312,6 +312,83 @@ model AuditSyncLog {
   @@map("audit_sync_logs")
 }
 
+model LoraMeasure {
+  id              Int       @id @default(autoincrement())
+  location        String?
+  time            String?
+  spreadingFactor String?   @map("spreading_factor")
+  txPower         String?   @map("tx_power")
+  blocks          Json      @default("[]")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  audits LoraAudit[]
+
+  @@map("lora_measures")
+}
+
+model LoraNoise {
+  id        Int      @id @default(autoincrement())
+  location  String?
+  longitude Float?
+  latitude  Float?
+  entries   Json     @default("[]")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  audits LoraAudit[]
+
+  @@map("lora_noise")
+}
+
+model LoraAudit {
+  id          String   @id @default(uuid())
+  code        String?
+  name        String
+  client      String?
+  project     String?
+  location    String?
+  technician  String?
+  description String?
+  objective   String?
+  status      String   @default("BORRADOR")
+  auditDate   DateTime? @map("audit_date")
+  startDate   DateTime? @map("start_date")
+  endDate     DateTime? @map("end_date")
+  measureId   Int?     @map("measure_id")
+  noiseId     Int?     @map("noise_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  measure LoraMeasure? @relation(fields: [measureId], references: [id], onDelete: SetNull)
+  noise   LoraNoise?   @relation(fields: [noiseId], references: [id], onDelete: SetNull)
+
+  analyses LoraAnalysis[]
+
+  @@index([status])
+  @@map("lora_audits")
+}
+
+model LoraAnalysis {
+  id         String   @id @default(uuid())
+  auditId    String   @map("audit_id")
+  category   String
+  metric     String
+  blockRole  String?  @map("block_role")
+  value      Float?
+  unit       String?
+  status     String
+  label      String?
+  message    String?
+  runAt      DateTime @default(now()) @map("run_at")
+
+  audit LoraAudit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@index([auditId])
+  @@index([auditId, category])
+  @@map("lora_analyses")
+}
+
 model AreaPlan {
   id        Int      @id @default(autoincrement())
   areaId    Int      @unique

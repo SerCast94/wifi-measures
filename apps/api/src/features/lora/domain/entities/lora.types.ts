@@ -1,0 +1,16 @@
+export type LoraAuditStatus =
+  | "BORRADOR"
+  | "EN_PROGRESO"
+  | "COMPLETADA"
+  | "PENDIENTE_DE_REVISION"
+  | "INFORME_GENERADO"
+  | "ARCHIVADA";
+
+export const LORA_AUDIT_STATUSES = [
+  "BORRADOR",
+  "EN_PROGRESO",
+  "COMPLETADA",
+  "PENDIENTE_DE_REVISION",
+  "INFORME_GENERADO",
+  "ARCHIVADA",
+] as const;

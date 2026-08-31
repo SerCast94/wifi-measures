@@ -2,7 +2,10 @@ import { memo, useEffect } from "react";
 
 import {
   Activity,
+  Antenna,
+  AudioWaveformIcon,
   ClipboardCheckIcon,
+  ClipboardListIcon,
   Radar,
   RadioTowerIcon,
   Router,
@@ -61,6 +64,24 @@ const auditItems: MenuItem[] = [
     title: "Archivos",
     url: "/files",
     icon: PaperclipIcon,
+  },
+];
+
+const loraItems: MenuItem[] = [
+  {
+    title: "Auditorías",
+    url: "/lora",
+    icon: ClipboardListIcon,
+  },
+  {
+    title: "Medidas",
+    url: "/lora/medidas",
+    icon: Antenna,
+  },
+  {
+    title: "Ruido",
+    url: "/lora/ruido",
+    icon: AudioWaveformIcon,
   },
 ];
 
@@ -131,6 +152,16 @@ function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarGroupContent>
             <SidebarMenu>
               {auditItems.map((item) => (
+                <AppSidebarMenuItem key={item.title} item={item} />
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupLabel>Auditoría LoRa</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {loraItems.map((item) => (
                 <AppSidebarMenuItem key={item.title} item={item} />
               ))}
             </SidebarMenu>

@@ -10,6 +10,7 @@ export const QUERY_KEYS = {
   netallyDashboard: "netally-dashboard",
   audits: "audits",
   auditProfiles: "audit-profiles",
+  lora: "lora",
 };
 
 // Permissions

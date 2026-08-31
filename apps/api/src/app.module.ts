@@ -20,6 +20,7 @@ import { SurveysModule } from "@features/surveys/surveys.module";
 import { AnalysesModule } from "@features/analyses/analyses.module";
 import { NetAllyModule } from "@features/netally/netally.module";
 import { AuditsModule } from "@features/audits/audits.module";
+import { LoraModule } from "@features/lora/lora.module";
 import { FilesModule } from "@features/files/files.module";
 import { ExceptionsModule } from "@core/exceptions/exceptions.module";
 import { ValidatorsModule } from "@core/validators/validators.module";
@@ -51,6 +52,7 @@ import { ValidatorsModule } from "@core/validators/validators.module";
     AnalysesModule,
     NetAllyModule,
     AuditsModule,
+    LoraModule,
     FilesModule,
   ],
   controllers: [],
