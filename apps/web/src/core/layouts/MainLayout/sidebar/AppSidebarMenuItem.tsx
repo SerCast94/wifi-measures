@@ -1,4 +1,4 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link } from "react-router-dom";
 
 import { type MenuItem } from "./AppSidebar";
 import {
@@ -9,10 +9,13 @@ import { useUser } from "@/features/auth/providers/UserProvider";
 
 interface AppSidebarMenuItemProps {
   item: MenuItem;
+  isActive?: boolean;
 }
 
-export const AppSidebarMenuItem = ({ item }: AppSidebarMenuItemProps) => {
-  const location = useLocation();
+export const AppSidebarMenuItem = ({
+  item,
+  isActive = false,
+}: AppSidebarMenuItemProps) => {
   const { user } = useUser();
 
   if (
@@ -27,7 +30,7 @@ export const AppSidebarMenuItem = ({ item }: AppSidebarMenuItemProps) => {
         <SidebarMenuButton
           tooltip={item.title}
           className={
-            location.pathname.includes(item.url)
+            isActive
               ? "bg-sidebar-accent text-sidebar-accent-foreground"
               : ""
           }

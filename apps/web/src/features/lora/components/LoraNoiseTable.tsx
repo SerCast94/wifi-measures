@@ -185,7 +185,8 @@ export const LoraNoiseTable = ({
                     <TableCell className="text-right">
                       <Button
                         size="icon"
-                        variant="ghost"
+                        variant="destructive"
+                        title="Eliminar ruido"
                         disabled={deleting}
                         onClick={() => onDelete(row.original.id)}
                       >

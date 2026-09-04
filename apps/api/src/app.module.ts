@@ -22,6 +22,8 @@ import { NetAllyModule } from "@features/netally/netally.module";
 import { AuditsModule } from "@features/audits/audits.module";
 import { LoraModule } from "@features/lora/lora.module";
 import { FilesModule } from "@features/files/files.module";
+import { FloorPlansModule } from "@features/floorplans/floorplans.module";
+import { ExteriorHeatmapsModule } from "@features/exterior-heatmaps/exterior-heatmaps.module";
 import { ExceptionsModule } from "@core/exceptions/exceptions.module";
 import { ValidatorsModule } from "@core/validators/validators.module";
 
@@ -54,6 +56,8 @@ import { ValidatorsModule } from "@core/validators/validators.module";
     AuditsModule,
     LoraModule,
     FilesModule,
+    FloorPlansModule,
+    ExteriorHeatmapsModule,
   ],
   controllers: [],
   providers: [],

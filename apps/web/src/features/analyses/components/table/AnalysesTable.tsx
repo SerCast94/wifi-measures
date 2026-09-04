@@ -24,6 +24,7 @@ import {
 } from "@/core/atomic-components/table";
 import { sizeOptions } from "../../constants/table";
 import { getAnalysesColumns } from "./getAnalysesColumns";
+import { useDeleteAnalysis } from "../../hooks/use-delete-analysis";
 import { AnalysesStatusFilter } from "../filters/AnalysesStatusFilter";
 import Paginator from "@/core/components/Pagination/Paginator";
 import { PaginationStats } from "@/core/components/Pagination/PaginationStats";
@@ -37,6 +38,7 @@ interface AnalysesTableProps {
 
 export const AnalysesTable = ({ analyses }: AnalysesTableProps) => {
   const navigate = useNavigate();
+  const deleteAnalysis = useDeleteAnalysis();
 
   const [sorting, setSorting] = useState<SortingState>([]);
 
@@ -51,7 +53,15 @@ export const AnalysesTable = ({ analyses }: AnalysesTableProps) => {
 
   const table = useReactTable({
     data: analyses,
-    columns: getAnalysesColumns(),
+    columns: getAnalysesColumns({
+      onDelete: (id) => {
+        if (
+          window.confirm("¿Seguro que deseas eliminar este análisis?")
+        ) {
+          deleteAnalysis.mutate(id);
+        }
+      },
+    }),
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),

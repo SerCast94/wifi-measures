@@ -56,6 +56,11 @@ const auditItems: MenuItem[] = [
     icon: Radar,
   },
   {
+    title: "Mapas de calor (exterior)",
+    url: "/surveys/map",
+    icon: Radar,
+  },
+  {
     title: "Análisis",
     url: "/analyses",
     icon: Activity,
@@ -82,6 +87,11 @@ const loraItems: MenuItem[] = [
     title: "Ruido",
     url: "/lora/ruido",
     icon: AudioWaveformIcon,
+  },
+  {
+    title: "Mapas de calor (exterior)",
+    url: "/lora/map",
+    icon: Radar,
   },
 ];
 
@@ -111,6 +121,25 @@ function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     if (isMobile) setOpenMobile(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname]);
+
+  const allUrls = [
+    ...auditItems,
+    ...loraItems,
+    ...managementItems,
+    ...adminItems,
+  ].map((item) => item.url);
+
+  const isActive = (url: string): boolean => {
+    const { pathname } = location;
+    const matches = allUrls.filter(
+      (u) => pathname === u || pathname.startsWith(`${u}/`)
+    );
+    if (matches.length === 0) return false;
+    const longest = matches.reduce((a, b) =>
+      b.length > a.length ? b : a
+    );
+    return longest === url;
+  };
 
   return (
     <Sidebar collapsible="icon" className="z-20" {...props}>
@@ -152,7 +181,11 @@ function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarGroupContent>
             <SidebarMenu>
               {auditItems.map((item) => (
-                <AppSidebarMenuItem key={item.title} item={item} />
+                <AppSidebarMenuItem
+                  key={item.title}
+                  item={item}
+                  isActive={isActive(item.url)}
+                />
               ))}
             </SidebarMenu>
           </SidebarGroupContent>
@@ -162,7 +195,11 @@ function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarGroupContent>
             <SidebarMenu>
               {loraItems.map((item) => (
-                <AppSidebarMenuItem key={item.title} item={item} />
+                <AppSidebarMenuItem
+                  key={item.title}
+                  item={item}
+                  isActive={isActive(item.url)}
+                />
               ))}
             </SidebarMenu>
           </SidebarGroupContent>
@@ -173,12 +210,20 @@ function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarGroupContent>
             <SidebarMenu>
               {managementItems.map((item) => (
-                <AppSidebarMenuItem key={item.title} item={item} />
+                <AppSidebarMenuItem
+                  key={item.title}
+                  item={item}
+                  isActive={isActive(item.url)}
+                />
               ))}
               {user?.permissions &&
                 user?.permissions.some((perm) => perm === MANAGE_USERS) &&
                 adminItems.map((item) => (
-                  <AppSidebarMenuItem key={item.title} item={item} />
+                  <AppSidebarMenuItem
+                    key={item.title}
+                    item={item}
+                    isActive={isActive(item.url)}
+                  />
                 ))}
             </SidebarMenu>
           </SidebarGroupContent>

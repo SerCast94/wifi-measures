@@ -1,5 +1,5 @@
 import { type ColumnDef } from "@tanstack/react-table";
-import { LogInIcon } from "lucide-react";
+import { LogInIcon, Trash2 } from "lucide-react";
 import { Link } from "react-router";
 import { Badge } from "@/core/atomic-components/badge";
 import { Button } from "@/core/atomic-components/button";
@@ -18,7 +18,13 @@ const formatDate = (value: string | null): string => {
   });
 };
 
-export const getAnalysesColumns = (): ColumnDef<LinkLiveAnalysis>[] => [
+interface GetAnalysesColumnsOptions {
+  onDelete?: (id: number) => void;
+}
+
+export const getAnalysesColumns = ({
+  onDelete,
+}: GetAnalysesColumnsOptions = {}): ColumnDef<LinkLiveAnalysis>[] => [
   {
     accessorFn: (analysis) =>
       analysis.name ?? analysis.fileName ?? analysis.idLinkLive,
@@ -119,21 +125,36 @@ export const getAnalysesColumns = (): ColumnDef<LinkLiveAnalysis>[] => [
   },
   {
     id: "actions",
-    header: () => <div className="text-right">Ver</div>,
+    header: () => <div className="text-right">Acciones</div>,
     enableSorting: false,
     cell: ({ row }) => (
       <div className="text-right">
-        <Link to={`/analyses/${row.original.id}`}>
-          <Button
-            size="icon"
-            title="Ir al análisis"
-            className="bg-yellow-500 text-foreground hover:bg-yellow-500/90"
-          >
-            <LogInIcon className="w-4 h-4" />
-          </Button>
-        </Link>
+        <div className="flex justify-end gap-2">
+          <Link to={`/analyses/${row.original.id}`}>
+            <Button
+              size="icon"
+              title="Ir al análisis"
+              className="bg-yellow-500 text-foreground hover:bg-yellow-500/90"
+            >
+              <LogInIcon className="w-4 h-4" />
+            </Button>
+          </Link>
+          {onDelete && (
+            <Button
+              size="icon"
+              variant="destructive"
+              title="Eliminar análisis"
+              onClick={(event) => {
+                event.stopPropagation();
+                onDelete(row.original.id);
+              }}
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          )}
+        </div>
       </div>
     ),
-    meta: { className: "w-16" },
+    meta: { className: "w-24" },
   },
 ];

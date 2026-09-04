@@ -105,6 +105,7 @@ model Audit {
   conclusion      AuditConclusion?
   reports         AuditReport[]
   syncLogs        AuditSyncLog[]
+  exteriorHeatmaps ExteriorHeatmap[]
 
   @@index([status])
   @@map("audits")
@@ -357,13 +358,16 @@ model LoraAudit {
   endDate     DateTime? @map("end_date")
   measureId   Int?     @map("measure_id")
   noiseId     Int?     @map("noise_id")
+  floorPlanId Int?     @map("floor_plan_id")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   measure LoraMeasure? @relation(fields: [measureId], references: [id], onDelete: SetNull)
   noise   LoraNoise?   @relation(fields: [noiseId], references: [id], onDelete: SetNull)
+  floorPlan UploadedFloorPlan? @relation(fields: [floorPlanId], references: [id], onDelete: SetNull)
 
   analyses LoraAnalysis[]
+  exteriorHeatmaps ExteriorHeatmap[]
 
   @@index([status])
   @@map("lora_audits")
@@ -402,6 +406,47 @@ model AreaPlan {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("area_plans")
+}
+
+model UploadedFloorPlan {
+  id           Int      @id @default(autoincrement())
+  name         String
+  fileName     String
+  mimeType     String
+  fileType     String   @default("image") // image | pdf
+  size         Int      @default(0)
+  floorZone    String?
+  linkLiveId   String?  @map("link_live_id")
+  image        String? // dataURL/base64 del plano (imagen o primera página de PDF)
+  originalFile String? // base64 del archivo original (ej. PDF)
+  width        Int      @default(0)
+  height       Int      @default(0)
+  scale        Json? // { pixelsPerMeter, pixelDistance, realDistance, unit, pointA, pointB }
+  geoCalibration Json? @map("geo_calibration") // { topLeftLat, topLeftLon, bottomRightLat, bottomRightLon }
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  loraAudits LoraAudit[]
+
+  @@map("audit_floor_plans")
+}
+
+model ExteriorHeatmap {
+  id          String   @id @default(uuid())
+  name        String
+  tipo        String   @default("WIFI") // WIFI | LORA
+  auditId     String?  @map("audit_id")
+  loraAuditId String?  @map("lora_audit_id")
+  points      Json     @default("[]") // [{ lat, lon, value, label }]
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  audit     Audit?     @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  loraAudit LoraAudit? @relation(fields: [loraAuditId], references: [id], onDelete: Cascade)
+
+  @@index([auditId])
+  @@index([loraAuditId])
+  @@map("exterior_heatmaps")
 }
 
 model LinkLiveSurvey {

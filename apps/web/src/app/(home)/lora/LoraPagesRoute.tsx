@@ -11,6 +11,7 @@ const LoraAuditDetailPage = lazy(() => import("./[auditId]/LoraAuditDetailPage")
 const LoraAuditAnalysisPage = lazy(
   () => import("./[auditId]/analisis/LoraAuditAnalysisPage")
 );
+const LoraMapPage = lazy(() => import("./map/LoraMapPage"));
 
 const LoraPagesRoute: RouteItemType = {
   path: "lora",
@@ -20,6 +21,7 @@ const LoraPagesRoute: RouteItemType = {
     { path: "new", element: <LoraNewAuditPage /> },
     { path: "medidas", element: <LoraMeasuresPage /> },
     { path: "ruido", element: <LoraNoisePage /> },
+    { path: "map", element: <LoraMapPage /> },
     { path: ":auditId/analisis", element: <LoraAuditAnalysisPage /> },
     { path: ":auditId", element: <LoraAuditDetailPage /> },
   ],

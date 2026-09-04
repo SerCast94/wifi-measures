@@ -1,6 +1,8 @@
-import { Download, Image, FileText } from "lucide-react";
+import { Download, Image, FileText, Trash2 } from "lucide-react";
 
+import { Button } from "@/core/atomic-components/button";
 import type { UploadedFile } from "@/features/netally/types/netally.types";
+import { useDeleteUnitFile } from "@/features/netally/hooks/use-delete-netally-file";
 
 const formatSize = (size: number | null): string => {
   if (size === null) return "—";
@@ -20,6 +22,8 @@ const formatDate = (date: string | null): string => {
 };
 
 export const UnitFiles = ({ files }: { files: UploadedFile[] }) => {
+  const deleteFile = useDeleteUnitFile();
+
   if (files.length === 0) {
     return (
       <p className="py-2 text-sm text-muted-foreground">
@@ -59,17 +63,32 @@ export const UnitFiles = ({ files }: { files: UploadedFile[] }) => {
               {formatSize(file.size)} · {formatDate(file.uploadedAt)}
             </p>
           </div>
-          {file.href && (
-            <a
-              href={file.href}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline shrink-0"
+          <div className="flex items-center gap-2 shrink-0">
+            {file.href && (
+              <a
+                href={file.href}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+              >
+                <Download className="w-4 h-4" />
+                Descargar
+              </a>
+            )}
+            <Button
+              size="icon"
+              variant="destructive"
+              title="Eliminar archivo"
+              disabled={deleteFile.isPending}
+              onClick={() => {
+                if (window.confirm("¿Seguro que deseas eliminar este archivo?")) {
+                  deleteFile.mutate(file.id);
+                }
+              }}
             >
-              <Download className="w-4 h-4" />
-              Descargar
-            </a>
-          )}
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
       ))}
     </div>

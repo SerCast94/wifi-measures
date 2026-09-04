@@ -23,6 +23,7 @@ import {
   getLoraNoise,
   runLoraAnalysis,
   updateLoraAuditStatus,
+  updateLoraAudit,
   type CreateLoraAuditInput,
   type CreateLoraMeasureInput,
   type CreateLoraNoiseInput,
@@ -139,6 +140,22 @@ export const useUpdateLoraAuditStatus = (id: string) => {
     mutationFn: (status) => updateLoraAuditStatus(id, status),
     onSuccess: (audit) => {
       queryClient.setQueryData(loraKeys(`audit:${id}`), audit);
+      queryClient.invalidateQueries({ queryKey: loraKeys("audits") });
+    },
+  });
+};
+
+export const useLinkLoraAuditFloorPlan = () => {
+  const queryClient = useQueryClient();
+  return useMutation<
+    LoraAudit,
+    AppError,
+    { auditId: string; floorPlanId: number | null }
+  >({
+    mutationFn: ({ auditId, floorPlanId }) =>
+      updateLoraAudit(auditId, { floorPlanId }),
+    onSuccess: (audit) => {
+      queryClient.setQueryData(loraKeys(`audit:${audit.id}`), audit);
       queryClient.invalidateQueries({ queryKey: loraKeys("audits") });
     },
   });

@@ -70,6 +70,17 @@ export class MeasuresService {
     }
   }
 
+  async delete(measureId: string): Promise<void> {
+    try {
+      await this.measuresRepository.delete(measureId);
+    } catch (error) {
+      if (this.config.get("env") === "development") {
+        throw error;
+      }
+      throw new Error("Error deleting measure, please try again later");
+    }
+  }
+
   async getImages(
     id: string,
     original?: boolean

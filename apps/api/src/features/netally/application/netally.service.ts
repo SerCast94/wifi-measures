@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 
 import {
+  CreateFloorPlanMetadata,
   LinkLiveService,
   LinkLiveUnit,
   LinkLiveUploadedFile,
@@ -34,6 +35,24 @@ export class NetAllyService {
       ...unit,
       files: files.filter((file) => file.unitId === unit._id),
     }));
+  }
+
+  async deleteFile(fileId: string): Promise<boolean> {
+    return this.linkLive.deleteUploadedFile(fileId);
+  }
+
+  async createFloorPlan(pngBuffer: Buffer, metadata: CreateFloorPlanMetadata) {
+    return this.linkLive.createFloorPlan(pngBuffer, metadata);
+  }
+
+  async updateFloorPlanMeasurements(
+    id: string,
+    metadata: Pick<
+      CreateFloorPlanMetadata,
+      "floorPlanScalePpf" | "unit" | "width" | "height"
+    >
+  ): Promise<boolean> {
+    return this.linkLive.updateFloorPlanMeasurements(id, metadata);
   }
 
   async getNetAllyDashboard(): Promise<NetAllyDashboardData> {

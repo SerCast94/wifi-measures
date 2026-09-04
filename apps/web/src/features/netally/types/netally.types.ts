@@ -38,3 +38,29 @@ export interface NetAllyDashboard {
   unitsByType: Record<string, number>;
   lastUpdated: string | null;
 }
+
+export interface UploadFloorPlanPayload {
+  imageBase64: string;
+  labels?: string[];
+  fileName: string;
+  floorPlanName: string;
+  floorPlanWidthPx: number;
+  floorPlanHeightPx: number;
+  floorPlanScalePpf: number;
+  unit: string;
+  width: number | string;
+  height: number | string;
+}
+
+export interface UploadFloorPlanResult {
+  id: string;
+  fileName: string;
+}
+
+export interface UpdateFloorPlanMeasurementsPayload {
+  linkLiveId: string;
+  floorPlanScalePpf: number;
+  unit: string;
+  width: number | string;
+  height: number | string;
+}

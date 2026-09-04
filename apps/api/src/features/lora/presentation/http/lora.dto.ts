@@ -73,6 +73,7 @@ export class CreateLoraAuditDto {
 
   @IsOptional() @IsInt() measureId?: number | null;
   @IsOptional() @IsInt() noiseId?: number | null;
+  @IsOptional() @IsInt() floorPlanId?: number | null;
 }
 
 export class UpdateLoraAuditDto extends CreateLoraAuditDto {}

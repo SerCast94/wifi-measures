@@ -1,4 +1,12 @@
-import { Controller, Get, HttpCode, Param, Post, Query } from "@nestjs/common";
+import {
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+  Query,
+} from "@nestjs/common";
 
 import { ApiExtraModels, ApiTags } from "@nestjs/swagger";
 
@@ -48,5 +56,12 @@ export class MeasuresController {
       await this.measuresService.syncMeasuresFromSubmissions();
 
     return submissions.map((measure) => new MeasurePresenter(measure));
+  }
+
+  @Delete(":id")
+  @HttpCode(200)
+  @HasPermissions([MANAGE_MEASURES], "any")
+  async remove(@Param("id") id: string) {
+    return this.measuresService.delete(id);
   }
 }

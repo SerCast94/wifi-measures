@@ -82,6 +82,7 @@ export interface LoraAudit {
   endDate: string | null;
   measure: LoraMeasure | null;
   noise: LoraNoise | null;
+  floorPlanId: number | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -23,6 +23,7 @@ import { sizeOptions } from "../../constants/table";
 import { getMeasuresColumns } from "./getMeasuresColumns";
 import Paginator from "@/core/components/Pagination/Paginator";
 import { useMeasuresTable } from "../../hooks/use-measures-table";
+import { useDeleteMeasure } from "../../hooks/use-delete-measure";
 import { useTableMeasuresStore } from "../../store/table-measures.store";
 import { PaginationStats } from "@/core/components/Pagination/PaginationStats";
 import { PageSizeSelector } from "@/core/components/Pagination/PageSizeSelector";
@@ -43,9 +44,17 @@ export const MeasuresTable = () => {
     (state) => state.setGlobalFilter
   );
 
+  const deleteMeasure = useDeleteMeasure();
+
   const table = useReactTable({
     data: measuresOrdered,
-    columns: getMeasuresColumns(),
+    columns: getMeasuresColumns({
+      onDelete: (id) => {
+        if (window.confirm("¿Seguro que deseas eliminar esta medida?")) {
+          deleteMeasure.mutate(id);
+        }
+      },
+    }),
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),

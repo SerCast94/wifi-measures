@@ -85,6 +85,21 @@ export class AnalysesService {
     });
   }
 
+  async delete(id: string) {
+    const client = this.client;
+    if (!client) return false;
+
+    const analysisId = Number(id);
+    if (!Number.isFinite(analysisId)) return false;
+
+    try {
+      await client.linkLiveAnalysis.delete({ where: { id: analysisId } });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async sync() {
     const organizationId = this.config.get("linkLiveOrgId");
     const analyses = await this.linkLiveService.listAnalyses({

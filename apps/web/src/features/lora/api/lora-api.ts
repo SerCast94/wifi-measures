@@ -57,6 +57,7 @@ export interface CreateLoraAuditInput {
   endDate?: string | null;
   measureId?: number | null;
   noiseId?: number | null;
+  floorPlanId?: number | null;
 }
 
 export const getLoraMeasures = async (): Promise<LoraMeasure[]> => {
@@ -186,6 +187,21 @@ export const updateLoraAuditStatus = async (
     const { data } = await apiClient.patch<{ data: LoraAudit }>(
       `${VERSION}/lora/audits/${id}/status`,
       { status }
+    );
+    return data.data;
+  } catch (error) {
+    handleApiError(error);
+  }
+};
+
+export const updateLoraAudit = async (
+  id: string,
+  input: Partial<CreateLoraAuditInput>
+): Promise<LoraAudit> => {
+  try {
+    const { data } = await apiClient.patch<{ data: LoraAudit }>(
+      `${VERSION}/lora/audits/${id}`,
+      input
     );
     return data.data;
   } catch (error) {

@@ -6,11 +6,13 @@ export const QUERY_KEYS = {
   areas: "areas",
   units: "units",
   surveys: "surveys",
+  floorplans: "floorplans",
   analyses: "analyses",
   netallyDashboard: "netally-dashboard",
   audits: "audits",
   auditProfiles: "audit-profiles",
   lora: "lora",
+  exteriorHeatmaps: "exterior-heatmaps",
 };
 
 // Permissions

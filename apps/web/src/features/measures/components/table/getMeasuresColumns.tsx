@@ -1,7 +1,9 @@
 import { type ColumnDef, type Row } from "@tanstack/react-table";
+import { Trash2 } from "lucide-react";
 
 import type { MeasureModel } from "../../models/measure.model";
 import { GoToMeasureBtn } from "../actions-buttons/GoToMeasureBtn";
+import { Button } from "@/core/atomic-components/button";
 
 const NETALLY_COLORS: Record<string, string> = {
   red: "bg-red-500",
@@ -19,7 +21,13 @@ const formatNumber = (value: unknown): string => {
   return `${value}`;
 };
 
-export const getMeasuresColumns = (): ColumnDef<MeasureModel>[] => {
+interface GetMeasuresColumnsOptions {
+  onDelete?: (id: number | string) => void;
+}
+
+export const getMeasuresColumns = ({
+  onDelete,
+}: GetMeasuresColumnsOptions = {}): ColumnDef<MeasureModel>[] => {
   const columns = [
     {
       accessorKey: "datetime",
@@ -130,12 +138,25 @@ export const getMeasuresColumns = (): ColumnDef<MeasureModel>[] => {
       id: "actions",
       header: "ACCIONES",
       cell: ({ row }: { row: Row<MeasureModel> }) => (
-        <div className="w-[70px]">
+        <div className="w-[110px]">
           <div className="flex my-1 space-x-2">
             <GoToMeasureBtn
               className="hidden sm:flex"
               measureId={`${row.original.id}`}
             />
+            {onDelete && (
+              <Button
+                size="icon"
+                variant="destructive"
+                title="Eliminar medida"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onDelete(row.original.id);
+                }}
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            )}
           </div>
         </div>
       ),

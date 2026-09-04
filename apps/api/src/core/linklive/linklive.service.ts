@@ -1,5 +1,7 @@
 import { Global, Injectable, UnauthorizedException } from "@nestjs/common";
 
+import { randomUUID } from "crypto";
+
 import axios, { AxiosInstance } from "axios";
 
 import { AppConfigService } from "@config/app-config.service";
@@ -98,6 +100,19 @@ export interface LinkLiveFloorPlan {
   heightPx?: number;
   floorPlanScalePpf?: number;
   [key: string]: any;
+}
+
+export interface CreateFloorPlanMetadata {
+  labels?: string[];
+  fileName: string;
+  floorPlanName: string;
+  floorPlanWidthPx: number;
+  floorPlanHeightPx: number;
+  floorPlanScalePpf: number;
+  unit: string;
+  width: number | string;
+  height: number | string;
+  signalPropagation?: number;
 }
 
 export interface LinkLiveHeatmapPoint {
@@ -263,6 +278,38 @@ export class LinkLiveService {
     });
   }
 
+  async deleteUploadedFile(fileId: string): Promise<boolean> {
+    try {
+      const token = await this.getAccessToken();
+      return await this.doRequestDelete<boolean>(token, fileId);
+    } catch (error: any) {
+      const status = error?.response?.status;
+      if (status === 401 || status === 426) {
+        this.accessToken = null;
+        const token = await this.getAccessToken();
+        return this.doRequestDelete<boolean>(token, fileId);
+      }
+      throw error;
+    }
+  }
+
+  async deleteFloorPlan(guid: string): Promise<boolean> {
+    try {
+      const token = await this.getAccessToken();
+      await this.doDeleteFloorPlan(token, guid);
+      return true;
+    } catch (error: any) {
+      const status = error?.response?.status;
+      if (status === 401 || status === 426) {
+        this.accessToken = null;
+        const token = await this.getAccessToken();
+        await this.doDeleteFloorPlan(token, guid);
+        return true;
+      }
+      throw error;
+    }
+  }
+
   async listHeatmaps(params?: {
     offset?: number;
     limit?: number;
@@ -389,6 +436,139 @@ export class LinkLiveService {
     return Buffer.from(data).toString("base64");
   }
 
+  async createFloorPlan(
+    fileBuffer: Buffer,
+    metadata: CreateFloorPlanMetadata
+  ): Promise<{ id: string; fileName: string }> {
+    const body = {
+      ...metadata,
+      labels: metadata.labels ?? [],
+      guid: randomUUID(),
+    };
+
+    const created = await this.createFloorPlanRecord(body);
+    if (created?.putUrl) {
+      await this.uploadFloorPlanImage(created.putUrl, fileBuffer);
+    }
+
+    return {
+      id: created?.id ?? body.guid,
+      fileName: metadata.fileName,
+    };
+  }
+
+  async updateFloorPlanMeasurements(
+    id: string,
+    metadata: Pick<
+      CreateFloorPlanMetadata,
+      "floorPlanScalePpf" | "unit" | "width" | "height"
+    >
+  ): Promise<boolean> {
+    try {
+      const token = await this.getAccessToken();
+      return await this.doUpdateFloorPlanMeasurements(token, id, metadata);
+    } catch (error: any) {
+      const status = error?.response?.status;
+      if (status === 401 || status === 426) {
+        this.accessToken = null;
+        const token = await this.getAccessToken();
+        return this.doUpdateFloorPlanMeasurements(token, id, metadata);
+      }
+      throw error;
+    }
+  }
+
+  private async createFloorPlanRecord(
+    body: CreateFloorPlanMetadata & { guid: string }
+  ): Promise<{ id: string; putUrl: string | null } | null> {
+    try {
+      const token = await this.getAccessToken();
+      return await this.doCreateFloorPlanRecord(token, body);
+    } catch (error: any) {
+      const status = error?.response?.status;
+      if (status === 401 || status === 426) {
+        this.accessToken = null;
+        const token = await this.getAccessToken();
+        return this.doCreateFloorPlanRecord(token, body);
+      }
+      throw error;
+    }
+  }
+
+  private async doCreateFloorPlanRecord(
+    token: string,
+    body: CreateFloorPlanMetadata & { guid: string }
+  ): Promise<{ id: string; putUrl: string | null } | null> {
+    try {
+      const { data } = await this.http.post<any>(
+        `${this.config.get("linkLiveBaseUrl")}/v1/admin/heatmapFloorplans`,
+        body,
+        { headers: { Authorization: `Access ${token}` } }
+      );
+      const record = Array.isArray(data) ? data[0] : data;
+      const putUrl = record?.putUrl ?? null;
+      // El id que usa Link-Live para eliminar/consultar es el "_id" (ObjectId),
+      // NO el guid que generamos en el cliente.
+      const id = record?._id ?? body.guid;
+      return { id, putUrl };
+    } catch (error: any) {
+      if (error?.response?.status === 401 || error?.response?.status === 426) {
+        throw error;
+      }
+      throw new Error(
+        `No se pudo crear el floor plan en Link-Live: ${
+          error?.response?.data?.message ?? error.message
+        }`
+      );
+    }
+  }
+
+  private async uploadFloorPlanImage(
+    putUrl: string,
+    fileBuffer: Buffer
+  ): Promise<void> {
+    try {
+      await this.http.put(putUrl, fileBuffer, {
+        headers: { "Content-Type": "application/octet-stream" },
+      });
+    } catch (error: any) {
+      throw new Error(
+        `No se pudo subir la imagen del floor plan a Link-Live: ${
+          error?.response?.data?.message ?? error.message
+        }`
+      );
+    }
+  }
+
+  private async doUpdateFloorPlanMeasurements(
+    token: string,
+    id: string,
+    metadata: Pick<
+      CreateFloorPlanMetadata,
+      "floorPlanScalePpf" | "unit" | "width" | "height"
+    >
+  ): Promise<boolean> {
+    try {
+      await this.http.put(
+        `${this.config.get(
+          "linkLiveBaseUrl"
+        )}/v1/admin/heatmapFloorplans/${id}`,
+        metadata,
+        { headers: { Authorization: `Access ${token}` } }
+      );
+      return true;
+    } catch (error: any) {
+      if (error?.response?.status === 401 || error?.response?.status === 426) {
+        throw error;
+      }
+      throw new Error(
+        `No se pudieron actualizar las medidas del floor plan en Link-Live: ${
+          error?.response?.data?.message ?? error.message
+        }`
+      );
+    }
+  }
+
   private async request<T>(options: {
     url: string;
     params?: Record<string, any>;
@@ -423,6 +603,43 @@ export class LinkLiveService {
       }
       throw new Error(
         `No se pudieron obtener datos de Link-Live: ${
+          error?.response?.data?.message ?? error.message
+        }`
+      );
+    }
+  }
+
+  private async doRequestDelete<T>(token: string, fileId: string): Promise<T> {
+    try {
+      const { data } = await this.http.delete<T>(
+        `${this.config.get("linkLiveBaseUrl")}/v1/admin/uploadedfiles/${fileId}`,
+        { headers: { Authorization: `Access ${token}` } }
+      );
+      return data;
+    } catch (error: any) {
+      if (error?.response?.status === 401 || error?.response?.status === 426) {
+        throw error;
+      }
+      throw new Error(
+        `No se pudo eliminar el archivo de Link-Live: ${
+          error?.response?.data?.message ?? error.message
+        }`
+      );
+    }
+  }
+
+  private async doDeleteFloorPlan(token: string, guid: string): Promise<void> {
+    try {
+      await this.http.delete(
+        `${this.config.get("linkLiveBaseUrl")}/v1/admin/heatmapFloorplans/${guid}`,
+        { headers: { Authorization: `Access ${token}` } }
+      );
+    } catch (error: any) {
+      if (error?.response?.status === 401 || error?.response?.status === 426) {
+        throw error;
+      }
+      throw new Error(
+        `No se pudo eliminar el floor plan de Link-Live: ${
           error?.response?.data?.message ?? error.message
         }`
       );

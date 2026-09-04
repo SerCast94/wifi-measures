@@ -49,6 +49,7 @@ export interface CreateLoraAuditInput {
   endDate?: Date | null;
   measureId?: number | null;
   noiseId?: number | null;
+  floorPlanId?: number | null;
 }
 
 export type UpdateLoraAuditInput = Partial<CreateLoraAuditInput>;
@@ -205,6 +206,7 @@ export class LoraService {
         endDate: input.endDate ?? null,
         measureId: input.measureId ?? null,
         noiseId: input.noiseId ?? null,
+        floorPlanId: input.floorPlanId ?? null,
       },
     });
     return this.getAuditByIdOrThrow(created.id);

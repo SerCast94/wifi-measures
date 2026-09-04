@@ -1,4 +1,12 @@
-import { Controller, Get, HttpCode, Param, Post, Query } from "@nestjs/common";
+import {
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+  Query,
+} from "@nestjs/common";
 
 import { ApiExtraModels, ApiTags } from "@nestjs/swagger";
 
@@ -51,5 +59,12 @@ export class AnalysesController {
   async sync() {
     const analyses = await this.analysesService.sync();
     return analyses.map((analysis: any) => new AnalysisPresenter(analysis));
+  }
+
+  @Delete(":id")
+  @HttpCode(200)
+  @HasPermissions([MANAGE_MEASURES], "any")
+  async remove(@Param("id") id: string) {
+    return this.analysesService.delete(id);
   }
 }
