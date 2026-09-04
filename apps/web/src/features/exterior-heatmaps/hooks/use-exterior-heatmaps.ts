@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/config/constants";
 import { AppError } from "@/core/models/app-error";
 import {
+  createExteriorHeatmapFromAudit,
   createExteriorHeatmapFromLoraAudit,
   deleteExteriorHeatmap,
   getExteriorHeatmaps,
@@ -13,6 +14,20 @@ export const useExteriorHeatmaps = () => {
   return useQuery<ExteriorHeatmap[]>({
     queryKey: [QUERY_KEYS.exteriorHeatmaps],
     queryFn: getExteriorHeatmaps,
+  });
+};
+
+export const useCreateExteriorHeatmapFromAudit = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<ExteriorHeatmap, AppError, string>({
+    mutationFn: (auditId: string) =>
+      createExteriorHeatmapFromAudit(auditId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.exteriorHeatmaps],
+      });
+    },
   });
 };
 

@@ -13,6 +13,7 @@ import {
 } from "@/core/atomic-components/table";
 import { SyncSurveysBtn } from "@/features/surveys/components/SyncSurveysBtn";
 import { useSurveys } from "@/features/surveys/hooks/use-surveys";
+import { FloorPlansSection } from "@/features/floorplans/components/FloorPlansSection";
 
 const formatDate = (value: string | null): string => {
   if (!value) return "—";
@@ -120,6 +121,8 @@ const SurveysPage = () => {
           )}
         </CardContent>
       </Card>
+
+      <FloorPlansSection />
     </div>
   );
 };

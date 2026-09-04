@@ -14,8 +14,12 @@ export interface ScaleCalibration {
 export interface GeoCalibration {
   topLeftLat: number;
   topLeftLon: number;
+  topRightLat: number;
+  topRightLon: number;
   bottomRightLat: number;
   bottomRightLon: number;
+  bottomLeftLat: number;
+  bottomLeftLon: number;
 }
 
 export type FloorPlanFileType = "image" | "pdf";
@@ -204,8 +208,12 @@ export class FloorPlanService {
     if (!geo || typeof geo !== "object") return null;
     const topLeftLat = Number(geo.topLeftLat);
     const topLeftLon = Number(geo.topLeftLon);
+    const topRightLat = Number(geo.topRightLat);
+    const topRightLon = Number(geo.topRightLon);
     const bottomRightLat = Number(geo.bottomRightLat);
     const bottomRightLon = Number(geo.bottomRightLon);
+    const bottomLeftLat = Number(geo.bottomLeftLat);
+    const bottomLeftLon = Number(geo.bottomLeftLon);
     if (
       !Number.isFinite(topLeftLat) ||
       !Number.isFinite(topLeftLon) ||
@@ -214,7 +222,20 @@ export class FloorPlanService {
     ) {
       return null;
     }
-    return { topLeftLat, topLeftLon, bottomRightLat, bottomRightLon };
+    return {
+      topLeftLat,
+      topLeftLon,
+      topRightLat: Number.isFinite(topRightLat) ? topRightLat : topLeftLat,
+      topRightLon: Number.isFinite(topRightLon) ? topRightLon : bottomRightLon,
+      bottomRightLat,
+      bottomRightLon,
+      bottomLeftLat: Number.isFinite(bottomLeftLat)
+        ? bottomLeftLat
+        : bottomRightLat,
+      bottomLeftLon: Number.isFinite(bottomLeftLon)
+        ? bottomLeftLon
+        : topLeftLon,
+    };
   }
 
   private toData(plan: any): FloorPlanData {

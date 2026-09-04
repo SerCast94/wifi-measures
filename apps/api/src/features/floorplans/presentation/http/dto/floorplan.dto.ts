@@ -48,11 +48,27 @@ class GeoCalibrationDto {
   @IsNumber()
   topLeftLon: number;
 
+  @IsOptional()
+  @IsNumber()
+  topRightLat: number;
+
+  @IsOptional()
+  @IsNumber()
+  topRightLon: number;
+
   @IsNumber()
   bottomRightLat: number;
 
   @IsNumber()
   bottomRightLon: number;
+
+  @IsOptional()
+  @IsNumber()
+  bottomLeftLat: number;
+
+  @IsOptional()
+  @IsNumber()
+  bottomLeftLon: number;
 }
 
 export class CreateFloorPlanDto {

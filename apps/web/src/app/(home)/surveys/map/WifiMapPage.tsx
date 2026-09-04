@@ -37,6 +37,7 @@ const WifiMapPage = () => {
     refetch: refetchHeatmaps,
   } = useExteriorHeatmaps();
   const deleteHeatmap = useDeleteExteriorHeatmap();
+
   const [mapUploadOpen, setMapUploadOpen] = useState(false);
   const [viewerHeatmap, setViewerHeatmap] = useState<ExteriorHeatmap | null>(
     null
@@ -46,6 +47,7 @@ const WifiMapPage = () => {
   const wifiHeatmaps = (heatmaps ?? []).filter(
     (h) => h.tipo === "WIFI"
   );
+
 
   const handleMapPlanCreated = (plan: FloorPlan) => {
     toast.success(
@@ -73,7 +75,7 @@ const WifiMapPage = () => {
       <div className="flex flex-col items-center justify-between gap-2 mt-2 mb-4 sm:flex-row">
         <h1 className="flex gap-4 px-2 mb-2 text-lg font-bold sm:items-center sm:text-2xl">
           <MapPinnedIcon className="w-6 h-6" />
-          Planos de mapa exterior
+          Mapas de calor exterior — Wi-Fi
         </h1>
         <Button onClick={() => setMapUploadOpen(true)}>
           <Map className="mr-2 h-4 w-4" />
@@ -82,16 +84,14 @@ const WifiMapPage = () => {
       </div>
 
       <p className="mb-6 text-sm text-muted-foreground">
-        Captura un área de un mapa y súbela como plano de mapa exterior a
-        NetAlly. El plano quedará disponible en Link-Live (AirMapper) para
-        recoger medidas y generar el mapa de calor.
+        Vincula un plano georeferenciado para usarlo como base del mapa.
       </p>
 
       {/* Parte 1: mapas de calor exteriores */}
       <section className="mb-8">
         <h2 className="mb-3 flex items-center gap-2 text-base font-bold sm:text-lg">
           <Flame className="h-5 w-5" />
-          Mapas de calor de mapa exterior
+          Mapas de calor exterior Wi-Fi
         </h2>
 
         {heatmapsLoading ? (
@@ -113,11 +113,11 @@ const WifiMapPage = () => {
           <div className="flex flex-col items-center justify-center gap-2 rounded-xl border bg-muted/20 p-8 text-center">
             <Flame className="h-8 w-8 text-muted-foreground" />
             <p className="text-sm font-medium text-foreground">
-              Aún no hay mapas de calor exteriores
+              Aún no hay mapas de calor exteriores Wi-Fi
             </p>
             <p className="text-xs text-muted-foreground">
-              Genera medidas con NetAlly sobre un plano de mapa exterior para
-              ver aquí su mapa de calor.
+              Selecciona una auditoría y pulsa «Generar desde auditoría» para
+              crear un mapa a partir de sus medidas con coordenadas GPS.
             </p>
           </div>
         ) : (

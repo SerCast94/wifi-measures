@@ -44,16 +44,28 @@ export class GeoCalibrationPresenter {
   topLeftLat: number;
   @ApiProperty({ type: "number", example: -3.7038 })
   topLeftLon: number;
+  @ApiProperty({ type: "number", example: 40.4168 })
+  topRightLat: number;
+  @ApiProperty({ type: "number", example: -3.698 })
+  topRightLon: number;
   @ApiProperty({ type: "number", example: 40.41 })
   bottomRightLat: number;
   @ApiProperty({ type: "number", example: -3.698 })
   bottomRightLon: number;
+  @ApiProperty({ type: "number", example: 40.41 })
+  bottomLeftLat: number;
+  @ApiProperty({ type: "number", example: -3.7038 })
+  bottomLeftLon: number;
 
   constructor(geo: any) {
     this.topLeftLat = Number(geo?.topLeftLat) || 0;
     this.topLeftLon = Number(geo?.topLeftLon) || 0;
+    this.topRightLat = Number(geo?.topRightLat) || this.topLeftLat;
+    this.topRightLon = Number(geo?.topRightLon) || Number(geo?.bottomRightLon) || 0;
     this.bottomRightLat = Number(geo?.bottomRightLat) || 0;
     this.bottomRightLon = Number(geo?.bottomRightLon) || 0;
+    this.bottomLeftLat = Number(geo?.bottomLeftLat) || this.bottomRightLat;
+    this.bottomLeftLon = Number(geo?.bottomLeftLon) || this.topLeftLon;
   }
 }
 

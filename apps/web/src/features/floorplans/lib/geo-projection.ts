@@ -6,38 +6,51 @@ import type {
 
 /**
  * Proyecta las coordenadas normalizadas (0-100) de un punto sobre la imagen
- * del plano a latitud/longitud reales, usando la georreferenciación del plano
- * (esquinas top-left y bottom-right en lat/lon).
+ * del plano a latitud/longitud reales, usando la georreferenciación de las
+ * cuatro esquinas del encuadre (top-left, top-right, bottom-right, bottom-left).
  */
 export const projectToLatLon = (
   x: number,
   y: number,
   geo: GeoCalibration
 ): { lat: number; lon: number } | null => {
-  const latSpan = geo.topLeftLat - geo.bottomRightLat;
-  const lonSpan = geo.bottomRightLon - geo.topLeftLon;
-  if (latSpan === 0 || lonSpan === 0) return null;
-  const px = Math.max(0, Math.min(100, x));
-  const py = Math.max(0, Math.min(100, y));
-  const lat = geo.topLeftLat - (py / 100) * latSpan;
-  const lon = geo.topLeftLon + (px / 100) * lonSpan;
+  const px = Math.max(0, Math.min(100, x)) / 100;
+  const py = Math.max(0, Math.min(100, y)) / 100;
+
+  const topLat = geo.topLeftLat + (geo.topRightLat - geo.topLeftLat) * px;
+  const bottomLat =
+    geo.bottomLeftLat + (geo.bottomRightLat - geo.bottomLeftLat) * px;
+  const lat = topLat + (bottomLat - topLat) * py;
+
+  const leftLon = geo.topLeftLon + (geo.bottomLeftLon - geo.topLeftLon) * py;
+  const rightLon =
+    geo.topRightLon + (geo.bottomRightLon - geo.topRightLon) * py;
+  const lon = leftLon + (rightLon - leftLon) * px;
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
   return { lat, lon };
 };
 
 /**
  * Proyecta una latitud/longitud real a coordenadas normalizadas (0-100) sobre
- * la imagen del plano.
+ * la imagen del plano, resolviendo el sistema bilineal inverso de forma
+ * aproximada por iteración (suficiente para georreferenciar medidas).
  */
 export const projectToImageXY = (
   lat: number,
   lon: number,
   geo: GeoCalibration
 ): { x: number; y: number } | null => {
-  const latSpan = geo.topLeftLat - geo.bottomRightLat;
-  const lonSpan = geo.bottomRightLon - geo.topLeftLon;
-  if (latSpan === 0 || lonSpan === 0) return null;
-  const x = ((lon - geo.topLeftLon) / lonSpan) * 100;
-  const y = ((geo.topLeftLat - lat) / latSpan) * 100;
+  let x = 0.5;
+  let y = 0.5;
+  for (let i = 0; i < 8; i++) {
+    const p = projectToLatLon(x * 100, y * 100, geo);
+    if (!p) return null;
+    const dx = p.lon - lon;
+    const dy = p.lat - lat;
+    x += dx * 8;
+    y -= dy * 8;
+  }
   if (x < -0.001 || x > 100.001 || y < -0.001 || y > 100.001) return null;
   return { x, y };
 };
@@ -66,8 +79,8 @@ export const geoDistanceMeters = (
 
 /**
  * Calcula la escala (pixelsPerMeter) de un plano a partir de su
- * georreferenciación y sus dimensiones en píxeles. Usa el ancho real en metros
- * entre las esquinas top-left y bottom-right del encuadre del mapa.
+ * georreferenciación y sus dimensiones en píxeles. Usa el ancho y alto reales
+ * estimados entre las esquinas del encuadre del mapa.
  *
  * Devuelve un ScaleCalibration sin puntos de calibración manuales (usados solo
  * para planos escaneados). Devuelve null si no es posible calcularla.
@@ -80,14 +93,14 @@ export const computeScaleFromGeoCalibration = (
   const widthMeters = geoDistanceMeters(
     geo.topLeftLat,
     geo.topLeftLon,
-    geo.topLeftLat,
-    geo.bottomRightLon
+    geo.topRightLat,
+    geo.topRightLon
   );
   const heightMeters = geoDistanceMeters(
     geo.topLeftLat,
     geo.topLeftLon,
-    geo.bottomRightLat,
-    geo.topLeftLon
+    geo.bottomLeftLat,
+    geo.bottomLeftLon
   );
   if (
     !Number.isFinite(widthMeters) ||

@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from "react";
 import L from "leaflet";
 import { MapContainer, TileLayer, useMap } from "react-leaflet";
 import html2canvas from "html2canvas";
-import { Camera, Loader2, MapPin, Upload, X } from "lucide-react";
+import { Camera, Loader2, MapPin, Ruler, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/core/atomic-components/button";
@@ -20,7 +20,10 @@ import { Label } from "@/core/atomic-components/label";
 import "leaflet/dist/leaflet.css";
 
 import { useCreateFloorPlan } from "../hooks/use-create-floorplan";
-import { computeScaleFromGeoCalibration } from "../lib/geo-projection";
+import {
+  computeScaleFromGeoCalibration,
+  geoDistanceMeters,
+} from "../lib/geo-projection";
 import type {
   FloorPlan,
   GeoCalibration,
@@ -51,8 +54,9 @@ export const CreateFloorPlanFromMapDialog = ({
   const [geoCalibration, setGeoCalibration] = useState<GeoCalibration | null>(
     null
   );
-  const [scale, setScale] = useState<ScaleCalibration | null>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const [widthMeters, setWidthMeters] = useState(0);
+  const [heightMeters, setHeightMeters] = useState(0);
   const [capturing, setCapturing] = useState(false);
   const createPlan = useCreateFloorPlan();
   const [netallyUploading, setNetallyUploading] = useState(false);
@@ -61,8 +65,9 @@ export const CreateFloorPlanFromMapDialog = ({
     setName("");
     setPreview(null);
     setGeoCalibration(null);
-    setScale(null);
     setDimensions({ width: 0, height: 0 });
+    setWidthMeters(0);
+    setHeightMeters(0);
   }, []);
 
   const handleClose = (next: boolean) => {
@@ -79,12 +84,18 @@ export const CreateFloorPlanFromMapDialog = ({
       const container = map.getContainer();
       const bounds = map.getBounds();
       const nw = bounds.getNorthWest();
+      const ne = bounds.getNorthEast();
       const se = bounds.getSouthEast();
+      const sw = bounds.getSouthWest();
       const geo: GeoCalibration = {
         topLeftLat: nw.lat,
         topLeftLon: nw.lng,
+        topRightLat: ne.lat,
+        topRightLon: ne.lng,
         bottomRightLat: se.lat,
         bottomRightLon: se.lng,
+        bottomLeftLat: sw.lat,
+        bottomLeftLon: sw.lng,
       };
       const canvas = await html2canvas(container, {
         useCORS: true,
@@ -99,7 +110,17 @@ export const CreateFloorPlanFromMapDialog = ({
         canvas.width,
         canvas.height
       );
-      setScale(computed?.scale ?? null);
+      if (computed) {
+        setWidthMeters(computed.scale.realDistance);
+        setHeightMeters(
+          geoDistanceMeters(
+            geo.topLeftLat,
+            geo.topLeftLon,
+            geo.bottomLeftLat,
+            geo.bottomLeftLon
+          )
+        );
+      }
       if (!name) {
         setName("Mapa exterior");
       }
@@ -113,15 +134,43 @@ export const CreateFloorPlanFromMapDialog = ({
   const handleResetCapture = () => {
     setPreview(null);
     setGeoCalibration(null);
-    setScale(null);
+    setWidthMeters(0);
+    setHeightMeters(0);
   };
 
   const handleSubmit = async () => {
-    if (!preview || !geoCalibration || !scale || dimensions.width <= 0 || dimensions.height <= 0) {
+    if (
+      !preview ||
+      !geoCalibration ||
+      dimensions.width <= 0 ||
+      dimensions.height <= 0
+    ) {
       toast.error("La zona capturada no tiene escala calculada.");
       return;
     }
     const finalName = name.trim() || "Mapa exterior";
+
+    const widthM = Number(widthMeters);
+    const heightM = Number(heightMeters);
+    if (!Number.isFinite(widthM) || widthM <= 0) {
+      toast.error("Introduce un ancho válido en metros.");
+      return;
+    }
+    if (!Number.isFinite(heightM) || heightM <= 0) {
+      toast.error("Introduce un alto válido en metros.");
+      return;
+    }
+
+    const pixelsPerMeter = dimensions.width / widthM;
+    const scale: ScaleCalibration = {
+      pixelsPerMeter,
+      pixelDistance: dimensions.width,
+      realDistance: widthM,
+      unit: "m",
+      pointA: { x: 0, y: 0.5 },
+      pointB: { x: 1, y: 0.5 },
+    };
+
     setNetallyUploading(true);
     try {
       const FT = 3.28084;
@@ -171,7 +220,7 @@ export const CreateFloorPlanFromMapDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="max-h-[90vh] max-w-4xl !flex !flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>Crear plano desde el mapa</DialogTitle>
           <DialogDescription>
@@ -180,49 +229,95 @@ export const CreateFloorPlanFromMapDialog = ({
           </DialogDescription>
         </DialogHeader>
 
-        {!preview ? (
-          <div className="relative h-[440px] w-full overflow-hidden rounded-lg border">
-            <MapContainer
-              center={[40.4168, -3.7038]}
-              zoom={15}
-              scrollWheelZoom
-              className="h-full w-full"
-            >
-              <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              />
-              <MapBridge onReady={(map) => (mapRef.current = map)} />
-            </MapContainer>
-            <div className="pointer-events-none absolute inset-4 z-[1000] rounded-md border-2 border-dashed border-primary/70" />
-          </div>
-        ) : (
-          <div className="relative h-[440px] w-full overflow-hidden rounded-lg border">
-            <img
-              src={preview}
-              alt="Zona capturada"
-              className="h-full w-full object-contain"
-            />
-            <div className="absolute left-3 top-3 z-[1000] flex items-center gap-2 rounded-md bg-emerald-600 px-2 py-1 text-xs font-semibold text-white">
-              <MapPin className="h-3.5 w-3.5" />
-              Georreferenciado
+        <div className="flex-1 overflow-y-auto pr-1">
+          {!preview ? (
+            <div className="relative h-[400px] w-full overflow-hidden rounded-lg border">
+              <MapContainer
+                center={[40.4168, -3.7038]}
+                zoom={15}
+                scrollWheelZoom
+                className="h-full w-full"
+              >
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                <MapBridge onReady={(map) => (mapRef.current = map)} />
+              </MapContainer>
+              <div className="pointer-events-none absolute inset-4 z-[1000] rounded-md border-2 border-dashed border-primary/70" />
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="relative h-[300px] w-full overflow-hidden rounded-lg border">
+              <img
+                src={preview}
+                alt="Zona capturada"
+                className="h-full w-full object-contain"
+              />
+              <div className="absolute left-3 top-3 z-[1000] flex items-center gap-2 rounded-md bg-emerald-600 px-2 py-1 text-xs font-semibold text-white">
+                <MapPin className="h-3.5 w-3.5" />
+                Georreferenciado
+              </div>
+            </div>
+          )}
 
-        <div className="space-y-3">
-          <div>
-            <Label htmlFor="map-plan-name">Nombre del plano</Label>
-            <Input
-              id="map-plan-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Ej. Mapa exterior zona norte"
-            />
+          {preview && (
+            <div className="mt-3 space-y-3 rounded-xl border p-4">
+              <p className="flex items-center gap-2 text-sm font-semibold">
+                <Ruler className="h-4 w-4 text-primary" />
+                Calibrar dimensiones
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col items-end gap-1">
+                  <Label>Ancho (metros)</Label>
+                  <div className="flex w-full items-center gap-2">
+                    <Input
+                      type="number"
+                      min={0}
+                      step="any"
+                      value={Number.isFinite(Number(widthMeters)) ? widthMeters : ""}
+                      onChange={(e) => setWidthMeters(Number(e.target.value))}
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  <Label>Alto (metros)</Label>
+                  <div className="flex w-full items-center gap-2">
+                    <Input
+                      type="number"
+                      min={0}
+                      step="any"
+                      value={Number.isFinite(Number(heightMeters)) ? heightMeters : ""}
+                      onChange={(e) => setHeightMeters(Number(e.target.value))}
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                La escala se calcula automáticamente a partir del ancho en metros.
+                Ajusta los valores si el mapa está rotado o la referencia es
+                imprecisa. Las{" "}
+                <span className="font-medium text-foreground">4 esquinas</span>{" "}
+                quedan georreferenciadas desde el encuadre capturado.
+              </p>
+            </div>
+          )}
+
+          <div className="mt-3 space-y-3">
+            <div>
+              <Label htmlFor="map-plan-name">Nombre del plano</Label>
+              <Input
+                id="map-plan-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Ej. Mapa exterior zona norte"
+              />
+            </div>
           </div>
         </div>
 
-        <DialogFooter className="flex items-center gap-2">
+        <DialogFooter className="mt-3 flex shrink-0 items-center gap-2">
           {!preview ? (
             <Button onClick={captureArea} disabled={capturing}>
               {capturing ? (
