@@ -47,9 +47,10 @@ export interface CreateLoraAuditInput {
   auditDate?: Date | null;
   startDate?: Date | null;
   endDate?: Date | null;
-  measureId?: number | null;
-  noiseId?: number | null;
+  measureIds?: number[];
+  noiseIds?: number[];
   floorPlanId?: number | null;
+  heatmapRadius?: number | null;
 }
 
 export type UpdateLoraAuditInput = Partial<CreateLoraAuditInput>;
@@ -68,8 +69,9 @@ export class LoraService {
     const client = this.client;
     if (!client) throw new Error("Base de datos no disponible");
     const rows = Array.isArray(inputs) ? inputs : [];
+    const created: any[] = [];
     for (const input of rows) {
-      await client.loraMeasure.create({
+      const record = await client.loraMeasure.create({
         data: {
           location: input.location ?? null,
           time: input.time ?? null,
@@ -78,8 +80,9 @@ export class LoraService {
           blocks: Array.isArray(input.blocks) ? input.blocks : [],
         },
       });
+      created.push(record);
     }
-    return this.listMeasures();
+    return created;
   }
 
   async listMeasures() {
@@ -108,8 +111,9 @@ export class LoraService {
     const client = this.client;
     if (!client) throw new Error("Base de datos no disponible");
     const rows = Array.isArray(inputs) ? inputs : [];
+    const created: any[] = [];
     for (const input of rows) {
-      await client.loraNoise.create({
+      const record = await client.loraNoise.create({
         data: {
           location: input.location ?? null,
           longitude: input.longitude ?? null,
@@ -117,8 +121,9 @@ export class LoraService {
           entries: Array.isArray(input.entries) ? input.entries : [],
         },
       });
+      created.push(record);
     }
-    return this.listNoise();
+    return created;
   }
 
   async listNoise() {
@@ -162,23 +167,48 @@ export class LoraService {
       client.loraAudit.count({ where }),
       client.loraAudit.findMany({
         where,
-        include: { measure: true, noise: true },
+        include: this.auditInclude(),
         orderBy: { createdAt: "desc" },
         skip: (page - 1) * size,
         take: size,
       }),
     ]);
 
-    return { items, total, page, size };
+    return { items: items.map((a: object) => this.toAuditView(a)), total, page, size };
+  }
+
+  private auditInclude() {
+    return {
+      measureLinks: { include: { measure: true } },
+      noiseLinks: { include: { noise: true } },
+      floorPlan: true,
+    };
+  }
+
+  private toAuditView<T extends object>(audit: T) {
+    const raw = audit as unknown as Record<string, any>;
+    return {
+      ...audit,
+      measures: (raw.measureLinks ?? []).map((l: any) => l.measure),
+      noise: (raw.noiseLinks ?? []).map((l: any) => l.noise),
+      measureLinks: undefined,
+      noiseLinks: undefined,
+    } as T & {
+      measures: any[];
+      noise: any[];
+      measureLinks: undefined;
+      noiseLinks: undefined;
+    };
   }
 
   async getAuditById(id: string) {
     const client = this.client;
     if (!client) return null;
-    return client.loraAudit.findUnique({
+    const audit = await client.loraAudit.findUnique({
       where: { id },
-      include: { measure: true, noise: true },
+      include: this.auditInclude(),
     });
+    return audit ? this.toAuditView(audit) : null;
   }
 
   async getAuditByIdOrThrow(id: string) {
@@ -204,9 +234,14 @@ export class LoraService {
         auditDate: input.auditDate ?? new Date(),
         startDate: input.startDate ?? null,
         endDate: input.endDate ?? null,
-        measureId: input.measureId ?? null,
-        noiseId: input.noiseId ?? null,
         floorPlanId: input.floorPlanId ?? null,
+        heatmapRadius: input.heatmapRadius ?? 0.16,
+        measureLinks: {
+          create: (input.measureIds ?? []).map((measureId) => ({ measureId })),
+        },
+        noiseLinks: {
+          create: (input.noiseIds ?? []).map((noiseId) => ({ noiseId })),
+        },
       },
     });
     return this.getAuditByIdOrThrow(created.id);
@@ -219,11 +254,30 @@ export class LoraService {
 
     const data: Record<string, unknown> = {};
     for (const key of Object.keys(input) as Array<keyof CreateLoraAuditInput>) {
+      if (key === "measureIds" || key === "noiseIds") continue;
       if (input[key] !== undefined) data[key] = input[key];
     }
     if (Object.keys(data).length > 0) {
       await client.loraAudit.update({ where: { id }, data });
     }
+
+    if (input.measureIds !== undefined) {
+      await client.loraAuditMeasure.deleteMany({ where: { auditId: id } });
+      if (input.measureIds.length > 0) {
+        await client.loraAuditMeasure.createMany({
+          data: input.measureIds.map((measureId) => ({ auditId: id, measureId })),
+        });
+      }
+    }
+    if (input.noiseIds !== undefined) {
+      await client.loraAuditNoise.deleteMany({ where: { auditId: id } });
+      if (input.noiseIds.length > 0) {
+        await client.loraAuditNoise.createMany({
+          data: input.noiseIds.map((noiseId) => ({ auditId: id, noiseId })),
+        });
+      }
+    }
+
     return this.getAuditByIdOrThrow(id);
   }
 

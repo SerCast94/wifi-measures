@@ -80,9 +80,10 @@ export interface LoraAudit {
   auditDate: string | null;
   startDate: string | null;
   endDate: string | null;
-  measure: LoraMeasure | null;
-  noise: LoraNoise | null;
+  measures: LoraMeasure[];
+  noise: LoraNoise[];
   floorPlanId: number | null;
+  heatmapRadius: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -97,6 +98,8 @@ export interface LoraEvaluationItem {
   status: LoraEvalStatus;
   label: string | null;
   message: string;
+  sourceLabel?: string | null;
+  elementRole?: string | null;
 }
 
 export interface LoraCoherence {
@@ -130,12 +133,14 @@ export interface LoraAnalysisChartBlock {
   snr: number | null;
   packetLossPct: number | null;
   totalPackets: number | null;
+  sourceLabel?: string | null;
 }
 
 export interface LoraAnalysisChartNoise {
   frequency: number | null;
   currentScan: number | null;
   weightedAverageScan: number | null;
+  sourceLabel?: string | null;
 }
 
 export interface LoraAnalysisData {

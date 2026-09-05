@@ -8,6 +8,7 @@ interface CsvUploadButtonProps {
   accept?: string;
   label?: string;
   disabled?: boolean;
+  multiple?: boolean;
 }
 
 export const CsvUploadButton = ({
@@ -15,6 +16,7 @@ export const CsvUploadButton = ({
   accept = ".csv,text/csv",
   label = "Cargar CSV",
   disabled,
+  multiple = false,
 }: CsvUploadButtonProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -32,10 +34,13 @@ export const CsvUploadButton = ({
         ref={inputRef}
         type="file"
         accept={accept}
+        multiple={multiple}
         className="hidden"
         onChange={(event) => {
-          const file = event.target.files?.[0];
-          if (file) handleFile(file);
+          const files = event.target.files
+            ? Array.from(event.target.files)
+            : [];
+          for (const file of files) handleFile(file);
           event.target.value = "";
         }}
       />

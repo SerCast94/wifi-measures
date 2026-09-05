@@ -129,7 +129,7 @@ export const useCreateLoraAudit = () => {
     mutationFn: createLoraAudit,
     onSuccess: (audit) => {
       queryClient.setQueryData(loraKeys(`audit:${audit.id}`), audit);
-      queryClient.invalidateQueries({ queryKey: loraKeys("audits") });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.lora] });
     },
   });
 };
@@ -138,9 +138,20 @@ export const useUpdateLoraAuditStatus = (id: string) => {
   const queryClient = useQueryClient();
   return useMutation<LoraAudit, AppError, string>({
     mutationFn: (status) => updateLoraAuditStatus(id, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: loraKeys(`audit:${id}`) });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.lora] });
+    },
+  });
+};
+
+export const useUpdateLoraAudit = () => {
+  const queryClient = useQueryClient();
+  return useMutation<LoraAudit, AppError, { id: string; input: Partial<CreateLoraAuditInput> }>({
+    mutationFn: ({ id, input }) => updateLoraAudit(id, input),
     onSuccess: (audit) => {
-      queryClient.setQueryData(loraKeys(`audit:${id}`), audit);
-      queryClient.invalidateQueries({ queryKey: loraKeys("audits") });
+      queryClient.setQueryData(loraKeys(`audit:${audit.id}`), audit);
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.lora] });
     },
   });
 };
@@ -156,7 +167,7 @@ export const useLinkLoraAuditFloorPlan = () => {
       updateLoraAudit(auditId, { floorPlanId }),
     onSuccess: (audit) => {
       queryClient.setQueryData(loraKeys(`audit:${audit.id}`), audit);
-      queryClient.invalidateQueries({ queryKey: loraKeys("audits") });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.lora] });
     },
   });
 };
@@ -166,7 +177,7 @@ export const useDeleteLoraAudit = () => {
   return useMutation<void, AppError, string>({
     mutationFn: deleteLoraAudit,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: loraKeys("audits") });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.lora] });
     },
   });
 };

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import L from "leaflet";
 import { MapContainer, TileLayer, useMap } from "react-leaflet";
 import html2canvas from "html2canvas";
@@ -35,6 +35,7 @@ interface CreateFloorPlanFromMapDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: (plan: FloorPlan) => void;
+  initialPoints?: Array<{ lat: number; lon: number }> | null;
 }
 
 const MapBridge = ({ onReady }: { onReady: (map: L.Map) => void }) => {
@@ -43,10 +44,31 @@ const MapBridge = ({ onReady }: { onReady: (map: L.Map) => void }) => {
   return null;
 };
 
+const FitInitialPoints = ({
+  points,
+}: {
+  points: Array<{ lat: number; lon: number }>;
+}) => {
+  const map = useMap();
+  useLayoutEffect(() => {
+    if (points.length === 0) return;
+    if (points.length === 1) {
+      map.setView([points[0].lat, points[0].lon], 17);
+      return;
+    }
+    const bounds = L.latLngBounds(
+      points.map((p) => [p.lat, p.lon] as [number, number])
+    );
+    map.fitBounds(bounds.pad(0.12), { maxZoom: 16 });
+  }, [map, points]);
+  return null;
+};
+
 export const CreateFloorPlanFromMapDialog = ({
   open,
   onOpenChange,
   onCreated,
+  initialPoints = null,
 }: CreateFloorPlanFromMapDialogProps) => {
   const mapRef = useRef<L.Map | null>(null);
   const [name, setName] = useState("");
@@ -243,6 +265,7 @@ export const CreateFloorPlanFromMapDialog = ({
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
                 <MapBridge onReady={(map) => (mapRef.current = map)} />
+                <FitInitialPoints points={initialPoints ?? []} />
               </MapContainer>
               <div className="pointer-events-none absolute inset-4 z-[1000] rounded-md border-2 border-dashed border-primary/70" />
             </div>

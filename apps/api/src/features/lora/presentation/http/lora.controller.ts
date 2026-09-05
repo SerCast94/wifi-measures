@@ -207,8 +207,10 @@ export class LoraController {
         result: analysis?.summary.globalResult ?? null,
         hasAnalysis: analysis != null,
       },
-      measures: audit.measure ? [audit.measure] : [],
-      noise: audit.noise ? [audit.noise] : [],
+      measures: audit.measures ?? [],
+      noise: audit.noise ?? [],
+      floorPlan: audit.floorPlan ?? null,
+      heatmapRadius: audit.heatmapRadius ?? 0.16,
     };
     let pdf: Buffer;
     try {

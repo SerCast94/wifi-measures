@@ -42,7 +42,7 @@ const statusColor = (status: string): string =>
     UNKNOWN: "#6b7280",
   })[status] ?? "#374151";
 
-function heatmap(data: any, metricOverride?: string): string {
+export function heatmap(data: any, metricOverride?: string): string {
   if (!data?.image) return "";
   const srcRaw = String(data.image);
   const src = srcRaw.startsWith("data:")
@@ -70,7 +70,8 @@ function heatmap(data: any, metricOverride?: string): string {
   const scale = dim ? Math.min(1, 900 / dim.w) : 1;
   const W = Math.max(200, Math.round((dim ? dim.w : 800) * scale));
   const H = Math.max(150, Math.round((dim ? dim.h : 600) * scale));
-  const maxR = Math.max(W, H) * 0.16;
+  const ratio = (dim ? dim.w : W) / (dim ? dim.h : H);
+  const maxR = Math.max(W, H) * (Number.isFinite(Number(data.maxRadius)) ? Number(data.maxRadius) : 0.16);
   const cell = Math.max(6, Math.floor(Math.max(W, H) / 200));
   const MIN_A = 0.04;
   const MAX_A = 0.62;
@@ -142,7 +143,7 @@ function heatmap(data: any, metricOverride?: string): string {
     .join("");
   const legMin = min.toFixed(0);
   const legMax = max.toFixed(0);
-  return `<div class="heatmap"><div class="heat-box">${imgTag}<svg class="heat-overlay" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><g>${rects}</g>${marks}</svg></div><div class="heat-legend"><p class="hl-title">${metricLabel} (${unit})</p><div class="hl-bar-wrap"><span class="hl-edge">${legMin}</span><div class="hl-bar"><div class="hl-grad" style="background:linear-gradient(90deg,${gradStops})"></div>${ticks}</div><span class="hl-edge">${legMax}</span></div><div class="hl-labels"><span class="hl-lbl"><i style="background:#dc2626"></i>Pobre</span><span class="hl-lbl"><i style="background:#eab308"></i>Aceptable</span><span class="hl-lbl"><i style="background:#16a34a"></i>Excelente</span></div></div></div>`;
+  return `<div class="heatmap"><div class="heat-box" style="aspect-ratio:${ratio.toFixed(4)}">${imgTag}<svg class="heat-overlay" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><g>${rects}</g>${marks}</svg></div><div class="heat-legend"><p class="hl-title">${metricLabel} (${unit})</p><div class="hl-bar-wrap"><span class="hl-edge">${legMin}</span><div class="hl-bar"><div class="hl-grad" style="background:linear-gradient(90deg,${gradStops})"></div>${ticks}</div><span class="hl-edge">${legMax}</span></div><div class="hl-labels"><span class="hl-lbl"><i style="background:#dc2626"></i>Pobre</span><span class="hl-lbl"><i style="background:#eab308"></i>Aceptable</span><span class="hl-lbl"><i style="background:#16a34a"></i>Excelente</span></div></div></div>`;
 }
 
 function hbar(
@@ -529,8 +530,9 @@ export function renderReportHtml(data: any): string {
   .counts div { border:1px solid #d1d5db; border-radius:5px; padding:4px 10px; font-size:10px; }
   .counts b { font-size:13px; }
   .heatmap { max-width:100%; margin:8px 0; }
-  .heat-box { position:relative; display:inline-block; max-width:100%; }
-  .heat-box img { display:block; max-width:100%; max-height:340px; border:1px solid #d1d5db; border-radius:4px; }
+  .heatmap > img { max-width:100%; border:1px solid #d1d5db; border-radius:4px; }
+  .heat-box { position:relative; width:100%; overflow:hidden; border-radius:4px; }
+  .heat-box img { position:absolute; left:0; top:0; width:100%; height:100%; object-fit:fill; border:1px solid #d1d5db; border-radius:4px; }
   .heat-overlay { position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; }
   .heat-legend { display:block; border:1px solid #d1d5db; background:#f9fafb; padding:8px 12px; font-size:10px; margin-top:6px; border-radius:4px; }
   .hl-title { font-weight:bold; font-size:11px; margin:0 0 6px; color:#111827; }
@@ -1003,7 +1005,10 @@ export function findChromiumPath(): string | null {
   return null;
 }
 
-export async function renderPdf(html: string): Promise<Buffer> {
+export async function renderPdf(
+  html: string,
+  options?: { footerLabel?: string }
+): Promise<Buffer> {
   let chromiumPath = findChromiumPath();
   if (!chromiumPath) {
     try {
@@ -1044,13 +1049,14 @@ export async function renderPdf(html: string): Promise<Buffer> {
       waitUntil: "load",
       timeout: 45000,
     });
+    const footerBrand = options?.footerLabel ?? "Informe de auditoría Wi-Fi";
     return (await page.pdf({
       format: "A4",
       printBackground: true,
       displayHeaderFooter: true,
       headerTemplate: `<div style="font-size:8px;width:100%;padding:0 12mm;color:#6b7280;position:relative;">${headerImg}</div>`,
       footerTemplate: `<div style="font-size:8px;width:100%;text-align:center;color:#6b7280;">
-        Informe de auditoría Wi-Fi — Página <span class="pageNumber"></span> de <span class="totalPages"></span>
+        ${footerBrand} — Página <span class="pageNumber"></span> de <span class="totalPages"></span>
       </div>`,
       margin: { top: "14mm", bottom: "16mm", left: "12mm", right: "12mm" },
     })) as Buffer;

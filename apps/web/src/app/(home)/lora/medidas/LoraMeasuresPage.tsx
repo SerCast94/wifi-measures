@@ -1,50 +1,32 @@
-import { toast } from "sonner";
 import { RadioTowerIcon } from "lucide-react";
 
 import CustomLoading from "@/core/components/CustomLoading";
-import { CsvUploadButton } from "@/features/lora/components/CsvUploadButton";
+import { Badge } from "@/core/atomic-components/badge";
+import { LoraCsvUploadButton } from "@/features/lora/components/LoraCsvUploadButton";
 import { LoraMeasuresTable } from "@/features/lora/components/LoraMeasuresTable";
 import {
-  useCreateLoraMeasures,
   useDeleteLoraMeasure,
   useLoraMeasures,
 } from "@/features/lora/hooks/use-lora";
-import { parseLoraMeasuresCsv } from "@/features/lora/lib/csv";
 
 const LoraMeasuresPage = () => {
   const { data: measures, isLoading } = useLoraMeasures();
-  const createMeasures = useCreateLoraMeasures();
   const deleteMeasure = useDeleteLoraMeasure();
-
-  const handleParsed = async (text: string, fileName: string) => {
-    const records = parseLoraMeasuresCsv(text);
-    if (records.length === 0) {
-      toast.error(
-        `No se encontraron bloques válidos en «${fileName}». Revisa el formato del CSV.`
-      );
-      return;
-    }
-    const blocks = records.reduce((n, r) => n + (r.blocks?.length ?? 0), 0);
-    try {
-      await createMeasures.mutateAsync(records);
-      toast.success(
-        `Se cargó «${fileName}» con ${blocks} bloques (${records.length} medida).`
-      );
-    } catch {
-      // error gestionado globalmente
-    }
-  };
 
   return (
     <div className="w-full px-2 py-2 mx-auto mb-4 sm:px-10 sm:py-6 xl:px-16 xl:py-8 animate-in fade-in-0">
       <div className="flex flex-col items-center justify-between gap-2 mt-2 mb-4 sm:flex-row">
-        <h1 className="flex gap-4 px-2 mb-2 text-lg font-bold sm:items-center sm:text-2xl">
+        <h1 className="flex items-center gap-3 px-2 mb-2 text-lg font-bold sm:text-2xl">
           <RadioTowerIcon className="w-6 h-6" />
           Medidas LoRa
+          {!isLoading && measures ? (
+            <Badge variant="secondary">{measures.length}</Badge>
+          ) : null}
         </h1>
-        <CsvUploadButton
-          onParsed={handleParsed}
-          disabled={createMeasures.isPending}
+        <LoraCsvUploadButton
+          kind="measures"
+          label="Cargar CSV"
+          multiple
         />
       </div>
 

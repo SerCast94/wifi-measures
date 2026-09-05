@@ -6,16 +6,16 @@ import CustomLoading from "@/core/components/CustomLoading";
 import { Button } from "@/core/atomic-components/button";
 import { ExteriorHeatmapMap } from "@/core/geo/ExteriorHeatmapMap";
 import {
-  useCreateExteriorHeatmapFromLoraAudit,
   useDeleteExteriorHeatmap,
   useExteriorHeatmaps,
 } from "@/features/exterior-heatmaps/hooks/use-exterior-heatmaps";
 import { useFloorPlans } from "@/features/floorplans/hooks/use-floorplans";
 import { isExteriorPlan } from "@/features/floorplans/types/floorplan.types";
 import { FloorPlansGrid } from "@/features/floorplans/components/FloorPlansGrid";
+import { CreateFloorPlanFromMapDialog } from "@/features/floorplans/components/CreateFloorPlanFromMapDialog";
 import { useLoraAudits } from "@/features/lora/hooks/use-lora";
-import { LinkFloorPlanDialog } from "@/features/lora/components/LinkFloorPlanDialog";
 import type { ExteriorHeatmap } from "@/features/exterior-heatmaps/types/exterior-heatmap.types";
+import type { FloorPlan } from "@/features/floorplans/types/floorplan.types";
 
 const formatDate = (value: string): string => {
   const date = new Date(value);
@@ -30,7 +30,6 @@ const formatDate = (value: string): string => {
 };
 
 const LoraMapPage = () => {
-  const { data: audits } = useLoraAudits();
   const { data: plans, isLoading: plansLoading } = useFloorPlans();
   const {
     data: heatmaps,
@@ -38,14 +37,13 @@ const LoraMapPage = () => {
     isError: heatmapsError,
     refetch: refetchHeatmaps,
   } = useExteriorHeatmaps();
-  const createFromAudit = useCreateExteriorHeatmapFromLoraAudit();
+  const { data: audits } = useLoraAudits();
   const deleteHeatmap = useDeleteExteriorHeatmap();
 
-  const [selectedAuditId, setSelectedAuditId] = useState("");
+  const [mapUploadOpen, setMapUploadOpen] = useState(false);
   const [viewerHeatmap, setViewerHeatmap] = useState<ExteriorHeatmap | null>(
     null
   );
-  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
 
   const loraMaps = useMemo(
     () => (heatmaps ?? []).filter((h) => h.tipo === "LORA"),
@@ -54,10 +52,54 @@ const LoraMapPage = () => {
 
   const exteriorPlans = (plans ?? []).filter(isExteriorPlan);
 
-  const selectedAudit = useMemo(
-    () => (audits ?? []).find((a) => a.id === selectedAuditId) ?? null,
-    [audits, selectedAuditId]
-  );
+  const planByAudit = useMemo(() => {
+    const result: Record<string, FloorPlan> = {};
+    const byId: Record<number, FloorPlan> = {};
+    for (const plan of plans ?? []) byId[plan.id] = plan;
+    for (const audit of audits ?? []) {
+      if (audit.floorPlanId && byId[audit.floorPlanId]) {
+        result[audit.id] = byId[audit.floorPlanId];
+      }
+    }
+    return result;
+  }, [audits, plans]);
+
+  const viewerFloorPlan = viewerHeatmap?.loraAuditId
+    ? planByAudit[viewerHeatmap.loraAuditId] ?? null
+    : null;
+
+  const mapInitialPoints = useMemo(() => {
+    if (viewerHeatmap) {
+      const pts = (viewerHeatmap.points ?? [])
+        .filter(
+          (p) => Number.isFinite(p.lat) && Number.isFinite(p.lon)
+        )
+        .map((p) => ({ lat: p.lat, lon: p.lon }));
+      if (pts.length > 0) return pts;
+    }
+    const pts: Array<{ lat: number; lon: number }> = [];
+    for (const audit of audits ?? []) {
+      for (const measure of audit.measures ?? []) {
+        for (const block of measure.blocks ?? []) {
+          if (block.latitude != null && block.longitude != null) {
+            pts.push({ lat: block.latitude, lon: block.longitude });
+          }
+        }
+      }
+      for (const noise of audit.noise ?? []) {
+        if (noise.latitude != null && noise.longitude != null) {
+          pts.push({ lat: noise.latitude, lon: noise.longitude });
+        }
+      }
+    }
+    return pts;
+  }, [viewerHeatmap, audits]);
+
+  const handleMapPlanCreated = (plan: FloorPlan) => {
+    toast.success(
+      `Plano «${plan.name}» guardado y subido a NetAlly. Podrás usarlo en AirMapper.`
+    );
+  };
 
   const handleViewHeatmap = (heatmap: ExteriorHeatmap) => {
     setViewerHeatmap(viewerHeatmap?.id === heatmap.id ? null : heatmap);
@@ -81,52 +123,15 @@ const LoraMapPage = () => {
           <MapPinnedIcon className="w-6 h-6" />
           Mapas de calor exterior — LoRa
         </h1>
+        <Button onClick={() => setMapUploadOpen(true)}>
+          <Map className="mr-2 h-4 w-4" />
+          Crear plano desde mapa
+        </Button>
       </div>
 
       <p className="mb-6 text-sm text-muted-foreground">
-        Selecciona una auditoría LoRa para generar su mapa de calor exterior.
         Vincula un plano georeferenciado para usarlo como base del mapa.
       </p>
-
-      {/* Selector de auditoría */}
-      <div className="mb-6 flex flex-col gap-3 rounded-2xl border p-4 sm:flex-row sm:items-end">
-        <div className="flex-1">
-          <label className="mb-1.5 block text-sm font-medium">
-            Auditoría LoRa
-          </label>
-          <select
-            value={selectedAuditId}
-            onChange={(e) => setSelectedAuditId(e.target.value)}
-            className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
-          >
-            <option value="">Selecciona una auditoría…</option>
-            {(audits ?? []).map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <button
-          onClick={async () => {
-            if (!selectedAuditId) {
-              toast.error("Selecciona una auditoría para generar el mapa.");
-              return;
-            }
-            try {
-              const created = await createFromAudit.mutateAsync(selectedAuditId);
-              setViewerHeatmap(created);
-              toast.success("Mapa de calor exterior LoRa generado.");
-            } catch {
-              // error gestionado globalmente
-            }
-          }}
-          disabled={createFromAudit.isPending || !selectedAuditId}
-          className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-        >
-          {createFromAudit.isPending ? "Generando…" : "Generar desde auditoría"}
-        </button>
-      </div>
 
       {/* Parte 1: mapas de calor LoRa */}
       <section className="mb-8">
@@ -157,8 +162,8 @@ const LoraMapPage = () => {
               Aún no hay mapas de calor exteriores LoRa
             </p>
             <p className="text-xs text-muted-foreground">
-              Selecciona una auditoría y pulsa «Generar desde auditoría» para
-              crear un mapa a partir de sus medidas y ruido con coordenadas.
+              Los mapas de calor aparecerán aquí cuando se generen a partir de
+              las auditorías LoRa con coordenadas GPS.
             </p>
           </div>
         ) : (
@@ -182,6 +187,14 @@ const LoraMapPage = () => {
                     <p className="truncate text-xs text-muted-foreground">
                       Mapa exterior · {formatDate(heatmap.createdAt)}
                     </p>
+                    {heatmap.loraAuditId && planByAudit[heatmap.loraAuditId] ? (
+                      <p className="truncate text-xs text-muted-foreground">
+                        Plano base:{" "}
+                        <span className="font-medium text-foreground/80">
+                          {planByAudit[heatmap.loraAuditId!].name}
+                        </span>
+                      </p>
+                    ) : null}
                     <div className="mt-auto flex items-center gap-1 border-t pt-2">
                       <Button
                         size="sm"
@@ -224,6 +237,23 @@ const LoraMapPage = () => {
                   points={viewerHeatmap.points}
                   metricLabel="Señal"
                   unit="dBm"
+                  floorPlan={
+                    viewerFloorPlan?.image && viewerFloorPlan.geoCalibration
+                      ? {
+                          image: viewerFloorPlan.image,
+                          geoCalibration: {
+                            topLeftLat:
+                              viewerFloorPlan.geoCalibration.topLeftLat,
+                            topLeftLon:
+                              viewerFloorPlan.geoCalibration.topLeftLon,
+                            bottomRightLat:
+                              viewerFloorPlan.geoCalibration.bottomRightLat,
+                            bottomRightLon:
+                              viewerFloorPlan.geoCalibration.bottomRightLon,
+                          },
+                        }
+                      : null
+                  }
                 />
               </div>
             )}
@@ -231,7 +261,7 @@ const LoraMapPage = () => {
         )}
       </section>
 
-      {/* Parte 2: planos subidos */}
+      {/* Parte 2: planos de mapa exterior */}
       <section>
         <h2 className="mb-3 flex items-center gap-2 text-base font-bold sm:text-lg">
           <Upload className="h-5 w-5" />
@@ -240,20 +270,16 @@ const LoraMapPage = () => {
         <FloorPlansGrid
           plans={exteriorPlans}
           isLoading={plansLoading}
-          emptyMessage="Aún no hay planos de mapa exterior. Sube un plano desde la sección de auditorías."
+          emptyMessage="Aún no hay planos de mapa exterior. Pulsa «Crear plano desde mapa» para capturar uno."
         />
       </section>
 
-      {/* Dialog para vincular plano a auditoría LoRa */}
-      {selectedAudit && (
-        <LinkFloorPlanDialog
-          open={linkDialogOpen}
-          onOpenChange={setLinkDialogOpen}
-          auditId={selectedAudit.id}
-          currentFloorPlanId={selectedAudit.floorPlanId}
-          onLinked={() => {}}
-        />
-      )}
+      <CreateFloorPlanFromMapDialog
+        open={mapUploadOpen}
+        onOpenChange={setMapUploadOpen}
+        onCreated={handleMapPlanCreated}
+        initialPoints={mapInitialPoints}
+      />
     </div>
   );
 };

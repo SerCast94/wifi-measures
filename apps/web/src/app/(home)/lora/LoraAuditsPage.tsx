@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/core/atomic-components/button";
+import { Badge } from "@/core/atomic-components/badge";
 import { Input } from "@/core/atomic-components/input";
 import {
   Card,
@@ -16,6 +17,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/core/atomic-components/card";
+import { EmptyState } from "@/core/atomic-components/empty-state";
+import CustomLoading from "@/core/components/CustomLoading";
 import { loraReportPdfUrl } from "@/features/lora/api/lora-api";
 import { LoraAuditStatusBadge } from "@/features/lora/components/badges";
 import {
@@ -61,11 +64,15 @@ const LoraAuditsPage = () => {
       </div>
 
       {isLoading ? (
-        <p className="p-8 text-center text-muted-foreground">Cargando…</p>
+        <CustomLoading />
       ) : !audits || audits.length === 0 ? (
         <Card>
-          <CardContent className="p-10 text-center text-muted-foreground">
-            Todavía no hay auditorías LoRa. Crea la primera para empezar.
+          <CardContent className="p-0">
+            <EmptyState
+              icon={ClipboardListIcon}
+              title="Todavía no hay auditorías LoRa"
+              description="Crea la primera auditoría para empezar a organizar medidas, ruido y planos."
+            />
           </CardContent>
         </Card>
       ) : (
@@ -83,8 +90,26 @@ const LoraAuditsPage = () => {
                   <p>{[audit.code, audit.client].filter(Boolean).join(" · ") || "—"}</p>
                   <p>{audit.location ?? "Sin ubicación"}</p>
                   <p className="text-xs">
-                    Medida: {audit.measure ? `#${audit.measure.id}` : "—"} · Ruido:{" "}
-                    {audit.noise ? `#${audit.noise.id}` : "—"}
+                    {audit.measures.length > 0 || audit.noise.length > 0 ? (
+                      <span className="inline-flex flex-wrap items-center gap-1">
+                        {audit.measures.length > 0 ? (
+                          <Badge variant="outline">
+                            Medidas: {audit.measures.length}
+                          </Badge>
+                        ) : null}
+                        {audit.noise.length > 0 ? (
+                          <Badge variant="outline">
+                            Ruido: {audit.noise.length}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">
+                            Sin ruido asociado
+                          </span>
+                        )}
+                      </span>
+                    ) : (
+                      "Sin medidas ni ruido asociados"
+                    )}
                   </p>
                   <p className="text-xs">
                     {formatDate(audit.startDate)} → {formatDate(audit.endDate)}

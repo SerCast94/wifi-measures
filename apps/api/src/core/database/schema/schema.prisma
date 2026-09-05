@@ -323,7 +323,7 @@ model LoraMeasure {
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
-  audits LoraAudit[]
+  auditLinks LoraAuditMeasure[]
 
   @@map("lora_measures")
 }
@@ -337,7 +337,7 @@ model LoraNoise {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  audits LoraAudit[]
+  auditLinks LoraAuditNoise[]
 
   @@map("lora_noise")
 }
@@ -355,22 +355,45 @@ model LoraAudit {
   status      String   @default("BORRADOR")
   auditDate   DateTime? @map("audit_date")
   startDate   DateTime? @map("start_date")
-  endDate     DateTime? @map("end_date")
-  measureId   Int?     @map("measure_id")
-  noiseId     Int?     @map("noise_id")
-  floorPlanId Int?     @map("floor_plan_id")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  endDate        DateTime? @map("end_date")
+  floorPlanId    Int?     @map("floor_plan_id")
+  heatmapRadius  Float?   @map("heatmap_radius") @default(0.16)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
-  measure LoraMeasure? @relation(fields: [measureId], references: [id], onDelete: SetNull)
-  noise   LoraNoise?   @relation(fields: [noiseId], references: [id], onDelete: SetNull)
-  floorPlan UploadedFloorPlan? @relation(fields: [floorPlanId], references: [id], onDelete: SetNull)
+  measureLinks LoraAuditMeasure[]
+  noiseLinks   LoraAuditNoise[]
+  floorPlan    UploadedFloorPlan? @relation(fields: [floorPlanId], references: [id], onDelete: SetNull)
 
   analyses LoraAnalysis[]
   exteriorHeatmaps ExteriorHeatmap[]
 
   @@index([status])
   @@map("lora_audits")
+}
+
+model LoraAuditMeasure {
+  auditId   String      @map("audit_id")
+  measureId Int         @map("measure_id")
+
+  audit   LoraAudit   @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  measure LoraMeasure @relation(fields: [measureId], references: [id], onDelete: Cascade)
+
+  @@id([auditId, measureId])
+  @@index([measureId])
+  @@map("lora_audit_measures")
+}
+
+model LoraAuditNoise {
+  auditId String    @map("audit_id")
+  noiseId Int       @map("noise_id")
+
+  audit LoraAudit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  noise LoraNoise @relation(fields: [noiseId], references: [id], onDelete: Cascade)
+
+  @@id([auditId, noiseId])
+  @@index([noiseId])
+  @@map("lora_audit_noise")
 }
 
 model LoraAnalysis {

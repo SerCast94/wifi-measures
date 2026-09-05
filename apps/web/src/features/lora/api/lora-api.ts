@@ -55,9 +55,10 @@ export interface CreateLoraAuditInput {
   auditDate?: string | null;
   startDate?: string | null;
   endDate?: string | null;
-  measureId?: number | null;
-  noiseId?: number | null;
+  measureIds?: number[];
+  noiseIds?: number[];
   floorPlanId?: number | null;
+  heatmapRadius?: number | null;
 }
 
 export const getLoraMeasures = async (): Promise<LoraMeasure[]> => {

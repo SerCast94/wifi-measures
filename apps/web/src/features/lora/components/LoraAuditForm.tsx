@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { Badge } from "@/core/atomic-components/badge";
 import { Button } from "@/core/atomic-components/button";
 import {
   Card,
@@ -9,16 +10,11 @@ import {
 } from "@/core/atomic-components/card";
 import { Input } from "@/core/atomic-components/input";
 import { Label } from "@/core/atomic-components/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/core/atomic-components/select";
+import { MultiSelect } from "@/core/atomic-components/multiselect";
+import { LoraCsvUploadButton } from "./LoraCsvUploadButton";
 import { useLoraMeasures, useLoraNoise } from "../hooks/use-lora";
 import type { CreateLoraAuditInput } from "../api/lora-api";
-import type { LoraAudit } from "../types/lora.types";
+import type { LoraAudit, LoraMeasure, LoraNoise } from "../types/lora.types";
 
 interface LoraAuditFormProps {
   initial?: LoraAudit;
@@ -41,11 +37,11 @@ export const LoraAuditForm = ({
   const { data: measures } = useLoraMeasures();
   const { data: noise } = useLoraNoise();
 
-  const [measureId, setMeasureId] = useState<string>(
-    initial?.measure?.id ? String(initial.measure.id) : ""
+  const [measureIds, setMeasureIds] = useState<string[]>(
+    (initial?.measures ?? []).map((m) => String(m.id))
   );
-  const [noiseId, setNoiseId] = useState<string>(
-    initial?.noise?.id ? String(initial.noise.id) : ""
+  const [noiseIds, setNoiseIds] = useState<string[]>(
+    (initial?.noise ?? []).map((n) => String(n.id))
   );
   const [form, setForm] = useState({
     name: initial?.name ?? "",
@@ -63,6 +59,16 @@ export const LoraAuditForm = ({
   const set = (key: keyof typeof form) => (value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
+  const handleMeasuresCreated = (created: LoraMeasure[] | LoraNoise[]) => {
+    const ids = (created as LoraMeasure[]).map((measure) => String(measure.id));
+    setMeasureIds((prev) => Array.from(new Set([...prev, ...ids])));
+  };
+
+  const handleNoiseCreated = (created: LoraMeasure[] | LoraNoise[]) => {
+    const ids = (created as LoraNoise[]).map((row) => String(row.id));
+    setNoiseIds((prev) => Array.from(new Set([...prev, ...ids])));
+  };
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!form.name.trim()) return;
@@ -77,8 +83,8 @@ export const LoraAuditForm = ({
       description: form.description.trim() || null,
       startDate: form.startDate ? new Date(form.startDate).toISOString() : null,
       endDate: form.endDate ? new Date(form.endDate).toISOString() : null,
-      measureId: measureId ? Number(measureId) : null,
-      noiseId: noiseId ? Number(noiseId) : null,
+      measureIds: measureIds.map((id) => Number(id)),
+      noiseIds: noiseIds.map((id) => Number(id)),
     });
   };
 
@@ -172,41 +178,87 @@ export const LoraAuditForm = ({
         <CardContent className="grid gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-              <Label>Medida LoRa</Label>
-              <Select value={measureId} onValueChange={setMeasureId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona una medida…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(measures ?? []).map((measure) => (
-                    <SelectItem key={measure.id} value={String(measure.id)}>
-                      #{measure.id} — {measure.location ?? "Sin ubicación"}
-                    </SelectItem>
+              <div className="flex items-center justify-between gap-2">
+                <Label>
+                  Medidas LoRa
+                  {measures && measures.length > 0 ? (
+                    <span className="ml-1 font-normal text-muted-foreground">
+                      ({measures.length} disponibles)
+                    </span>
+                  ) : null}
+                </Label>
+                <LoraCsvUploadButton
+                  kind="measures"
+                  label="Subir CSV"
+                  multiple
+                  onCreated={handleMeasuresCreated}
+                />
+              </div>
+              <MultiSelect
+                options={(measures ?? []).map((measure) => ({
+                  label: `#${measure.id} — ${measure.location ?? "Sin ubicación"}`,
+                  value: String(measure.id),
+                }))}
+                values={measureIds}
+                onValueChange={setMeasureIds}
+                placeholder="Selecciona una o más medidas…"
+                maxCount={3}
+              />
+              <div className="flex flex-wrap items-center gap-1">
+                {(measures ?? [])
+                  .filter((m) => measureIds.includes(String(m.id)))
+                  .map((m) => (
+                    <Badge key={m.id} variant="secondary">
+                      #{m.id}
+                    </Badge>
                   ))}
-                </SelectContent>
-              </Select>
+              </div>
               <p className="text-xs text-muted-foreground">
-                Necesitas cargar medidas en la sección «Medidas» para poder
-                seleccionarlas.
+                {measures && measures.length > 0
+                  ? "Selecciona una o varias medidas o sube un CSV para añadir más en cualquier momento."
+                  : "Aún no hay medidas cargadas. Pulsa «Subir CSV» para cargarlas o ve a la sección «Medidas»."}
               </p>
             </div>
             <div className="grid gap-2">
-              <Label>Ruido</Label>
-              <Select value={noiseId} onValueChange={setNoiseId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona un ruido…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(noise ?? []).map((row) => (
-                    <SelectItem key={row.id} value={String(row.id)}>
-                      #{row.id} — {row.location ?? "Sin ubicación"}
-                    </SelectItem>
+              <div className="flex items-center justify-between gap-2">
+                <Label>
+                  Ruido
+                  {noise && noise.length > 0 ? (
+                    <span className="ml-1 font-normal text-muted-foreground">
+                      ({noise.length} disponibles)
+                    </span>
+                  ) : null}
+                </Label>
+                <LoraCsvUploadButton
+                  kind="noise"
+                  label="Subir CSV"
+                  multiple
+                  onCreated={handleNoiseCreated}
+                />
+              </div>
+              <MultiSelect
+                options={(noise ?? []).map((row) => ({
+                  label: `#${row.id} — ${row.location ?? "Sin ubicación"}`,
+                  value: String(row.id),
+                }))}
+                values={noiseIds}
+                onValueChange={setNoiseIds}
+                placeholder="Selecciona uno o más ruidos…"
+                maxCount={3}
+              />
+              <div className="flex flex-wrap items-center gap-1">
+                {(noise ?? [])
+                  .filter((n) => noiseIds.includes(String(n.id)))
+                  .map((n) => (
+                    <Badge key={n.id} variant="secondary">
+                      #{n.id}
+                    </Badge>
                   ))}
-                </SelectContent>
-              </Select>
+              </div>
               <p className="text-xs text-muted-foreground">
-                Necesitas cargar ruido en la sección «Ruido» para poder
-                seleccionarlo.
+                {noise && noise.length > 0
+                  ? "Selecciona uno o varios registros de ruido o sube un CSV para añadir más en cualquier momento."
+                  : "Aún no hay ruido cargado. Pulsa «Subir CSV» para cargarlo o ve a la sección «Ruido»."}
               </p>
             </div>
           </div>

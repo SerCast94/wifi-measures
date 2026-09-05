@@ -71,12 +71,31 @@ export class CreateLoraAuditDto {
   @IsOptional() @IsDateString() startDate?: string | null;
   @IsOptional() @IsDateString() endDate?: string | null;
 
-  @IsOptional() @IsInt() measureId?: number | null;
-  @IsOptional() @IsInt() noiseId?: number | null;
+  @IsOptional() @IsArray() @IsInt({ each: true }) measureIds?: number[];
+  @IsOptional() @IsArray() @IsInt({ each: true }) noiseIds?: number[];
   @IsOptional() @IsInt() floorPlanId?: number | null;
+  @IsOptional() @IsNumber() heatmapRadius?: number | null;
 }
 
-export class UpdateLoraAuditDto extends CreateLoraAuditDto {}
+export class UpdateLoraAuditDto {
+  @IsOptional() @IsString() @MaxLength(200) name?: string;
+  @IsOptional() @IsString() @MaxLength(60) code?: string | null;
+  @IsOptional() @IsString() @MaxLength(200) client?: string | null;
+  @IsOptional() @IsString() @MaxLength(200) project?: string | null;
+  @IsOptional() @IsString() @MaxLength(200) location?: string | null;
+  @IsOptional() @IsString() @MaxLength(120) technician?: string | null;
+  @IsOptional() @IsString() description?: string | null;
+  @IsOptional() @IsString() objective?: string | null;
+
+  @IsOptional() @IsDateString() auditDate?: string | null;
+  @IsOptional() @IsDateString() startDate?: string | null;
+  @IsOptional() @IsDateString() endDate?: string | null;
+
+  @IsOptional() @IsArray() @IsInt({ each: true }) measureIds?: number[];
+  @IsOptional() @IsArray() @IsInt({ each: true }) noiseIds?: number[];
+  @IsOptional() @IsInt() floorPlanId?: number | null;
+  @IsOptional() @IsNumber() heatmapRadius?: number | null;
+}
 
 export class UpdateLoraAuditStatusDto {
   @IsIn(LORA_AUDIT_STATUSES as unknown as string[])

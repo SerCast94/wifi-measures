@@ -213,32 +213,38 @@ export class ExteriorHeatmapService {
     if (!client) return [];
     const loraAudit = await client.loraAudit.findUnique({
       where: { id: loraAuditId },
-      include: { measure: true, noise: true },
+      include: {
+        measureLinks: { include: { measure: true } },
+        noiseLinks: { include: { noise: true } },
+        floorPlan: true,
+      },
     });
     if (!loraAudit) return [];
     const points: ExteriorHeatmapPoint[] = [];
 
-    const blocks = Array.isArray(loraAudit.measure?.blocks)
-      ? loraAudit.measure.blocks
-      : [];
-    for (const block of blocks ?? []) {
-      const lat = toFloat(block.latitude);
-      const lon = toFloat(block.longitude);
-      if (lat === null || lon === null) continue;
-      const rssi = toFloat(block.rssi);
-      const snr = toFloat(block.snr);
-      points.push({
-        lat,
-        lon,
-        value: rssi ?? snr ?? 0,
-        label: block.location ?? "Medida LoRa",
-      });
+    for (const link of loraAudit.measureLinks ?? []) {
+      const measure = link.measure;
+      const blocks = Array.isArray(measure?.blocks) ? measure.blocks : [];
+      for (const block of blocks ?? []) {
+        const lat = toFloat(block.latitude);
+        const lon = toFloat(block.longitude);
+        if (lat === null || lon === null) continue;
+        const rssi = toFloat(block.rssi);
+        const snr = toFloat(block.snr);
+        points.push({
+          lat,
+          lon,
+          value: rssi ?? snr ?? 0,
+          label: block.location ?? "Medida LoRa",
+        });
+      }
     }
 
-    const noise = loraAudit.noise;
-    const noiseLat = toFloat(noise?.latitude);
-    const noiseLon = toFloat(noise?.longitude);
-    if (noiseLat !== null && noiseLon !== null) {
+    for (const link of loraAudit.noiseLinks ?? []) {
+      const noise = link.noise;
+      const noiseLat = toFloat(noise?.latitude);
+      const noiseLon = toFloat(noise?.longitude);
+      if (noiseLat === null || noiseLon === null) continue;
       const entries = Array.isArray(noise?.entries) ? noise.entries : [];
       const first = entries[0] ?? {};
       const value =

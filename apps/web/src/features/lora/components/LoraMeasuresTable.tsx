@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
+  RadioTowerIcon,
   Trash2Icon,
 } from "lucide-react";
 import {
@@ -12,7 +13,9 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 
+import { Badge } from "@/core/atomic-components/badge";
 import { Button } from "@/core/atomic-components/button";
+import { EmptyState } from "@/core/atomic-components/empty-state";
 import { cn } from "@/core/lib/utils";
 import {
   Table,
@@ -141,9 +144,7 @@ export const LoraMeasuresTable = ({
         id: "blocks-count",
         header: "Bloques",
         cell: ({ row }) => (
-          <span className="inline-flex rounded-full bg-muted px-2 py-0.5 text-xs">
-            {row.original.blocks.length}
-          </span>
+          <Badge variant="secondary">{row.original.blocks.length}</Badge>
         ),
       },
     ],
@@ -186,10 +187,14 @@ export const LoraMeasuresTable = ({
           {rows.length === 0 ? (
             <TableRow>
               <TableCell
-                colSpan={8}
-                className="py-8 text-center text-muted-foreground"
+                colSpan={table.getHeaderGroups()[0].headers.length + (onDelete ? 1 : 0)}
+                className="p-0"
               >
-                Todavía no hay medidas. Carga un archivo CSV para empezar.
+                <EmptyState
+                  icon={RadioTowerIcon}
+                  title="Todavía no hay medidas"
+                  description="Carga un archivo CSV (1 fila = 1 medida) para empezar."
+                />
               </TableCell>
             </TableRow>
           ) : (

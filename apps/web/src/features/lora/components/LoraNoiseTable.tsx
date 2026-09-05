@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  AudioWaveformIcon,
   ChevronDown,
   ChevronRight,
   Trash2Icon,
@@ -12,7 +13,9 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 
+import { Badge } from "@/core/atomic-components/badge";
 import { Button } from "@/core/atomic-components/button";
+import { EmptyState } from "@/core/atomic-components/empty-state";
 import { cn } from "@/core/lib/utils";
 import {
   Table,
@@ -118,9 +121,7 @@ export const LoraNoiseTable = ({
         id: "entries-count",
         header: "Frecuencias",
         cell: ({ row }) => (
-          <span className="inline-flex rounded-full bg-muted px-2 py-0.5 text-xs">
-            {row.original.entries.length}
-          </span>
+          <Badge variant="secondary">{row.original.entries.length}</Badge>
         ),
       },
     ],
@@ -163,10 +164,14 @@ export const LoraNoiseTable = ({
           {rows.length === 0 ? (
             <TableRow>
               <TableCell
-                colSpan={7}
-                className="py-8 text-center text-muted-foreground"
+                colSpan={table.getHeaderGroups()[0].headers.length + (onDelete ? 1 : 0)}
+                className="p-0"
               >
-                Todavía no hay datos de ruido. Carga un archivo CSV para empezar.
+                <EmptyState
+                  icon={AudioWaveformIcon}
+                  title="Todavía no hay datos de ruido"
+                  description="Carga un archivo CSV (1 archivo = 1 registro) para empezar."
+                />
               </TableCell>
             </TableRow>
           ) : (

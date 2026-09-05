@@ -51,9 +51,21 @@ export class LoraEvaluationService {
     const client = this.client;
     if (!client) throw new Error("Base de datos no disponible");
 
-    const audit = await this.loraService.getAuditByIdOrThrow(auditId);
-    const blocks = this.parseBlocks(audit.measure?.blocks);
-    const noiseEntries = this.parseNoiseEntries(audit.noise?.entries);
+const audit = await this.loraService.getAuditByIdOrThrow(auditId);
+    const blocks = (audit.measures ?? []).flatMap(
+      (m: { blocks?: unknown }, index: number) =>
+        this.parseBlocks(m.blocks).map((b) => ({
+          ...b,
+          sourceLabel: `Medida ${index + 1}`,
+        }))
+    );
+    const noiseEntries = (audit.noise ?? []).flatMap(
+      (n: { entries?: unknown }, index: number) =>
+        this.parseNoiseEntries(n.entries).map((e) => ({
+          ...e,
+          sourceLabel: `Ruido ${index + 1}`,
+        }))
+    );
 
     const { evaluations, coherence } = analyzeLora(blocks, noiseEntries);
     const summary = summarizeAnalysis(evaluations);
@@ -67,7 +79,8 @@ export class LoraEvaluationService {
           auditId,
           category: e.category,
           metric: e.metric,
-          blockRole: null,
+          blockRole:
+            [e.sourceLabel, e.elementRole].filter(Boolean).join(" � ") || null,
           value: e.value,
           unit: e.unit,
           status: e.status,
@@ -103,21 +116,22 @@ export class LoraEvaluationService {
     });
     if (rows.length === 0) return null;
 
-    const runAt = rows[0].runAt;
-    const evaluations = rows.map(
-      (row): EvaluatedMetric => ({
-        category: row.category,
-        metric: row.metric,
-        value: row.value,
-        unit: row.unit,
-        status: (row.status as EvaluatedMetric["status"]) ?? "UNKNOWN",
-        label: row.label,
-        message: row.message ?? "",
-      })
+const runAt = rows[0].runAt;
+    const blocks = (audit.measures ?? []).flatMap(
+      (m: { blocks?: unknown }, index: number) =>
+        this.parseBlocks(m.blocks).map((b) => ({
+          ...b,
+          sourceLabel: `Medida ${index + 1}`,
+        }))
     );
-    const blocks = this.parseBlocks(audit.measure?.blocks);
-    const noiseEntries = this.parseNoiseEntries(audit.noise?.entries);
-    const { coherence } = analyzeLora(blocks, noiseEntries);
+    const noiseEntries = (audit.noise ?? []).flatMap(
+      (n: { entries?: unknown }, index: number) =>
+        this.parseNoiseEntries(n.entries).map((e) => ({
+          ...e,
+          sourceLabel: `Ruido ${index + 1}`,
+        }))
+    );
+    const { evaluations, coherence } = analyzeLora(blocks, noiseEntries);
 
     return {
       batchId: `lora-run-${runAt.getTime()}`,
@@ -129,23 +143,37 @@ export class LoraEvaluationService {
   }
 
   /** Datos para gráficas (señal, pérdidas, ruido) derivados de la auditoría. */
-  async getAnalysisData(auditId: string) {
+async getAnalysisData(auditId: string) {
     const audit = await this.loraService.getAuditByIdOrThrow(auditId);
-    const blocks = this.parseBlocks(audit.measure?.blocks);
-    const noiseEntries = this.parseNoiseEntries(audit.noise?.entries);
+    const blocks = (audit.measures ?? []).flatMap(
+      (m: { blocks?: unknown }, index: number) =>
+        this.parseBlocks(m.blocks).map((b) => ({
+          ...b,
+          sourceLabel: `Medida ${index + 1}`,
+        }))
+    );
+    const noiseEntries = (audit.noise ?? []).flatMap(
+      (n: { entries?: unknown }, index: number) =>
+        this.parseNoiseEntries(n.entries).map((e) => ({
+          ...e,
+          sourceLabel: `Ruido ${index + 1}`,
+        }))
+    );
 
     return {
-      blocks: blocks.map((b) => ({
+      blocks: blocks.map((b: Record<string, any>) => ({
         role: b.role ?? null,
         rssi: b.rssi ?? null,
         snr: b.snr ?? null,
         packetLossPct: b.packetLossPct ?? null,
         totalPackets: b.totalPackets ?? null,
+        sourceLabel: b.sourceLabel ?? null,
       })),
-      noise: noiseEntries.map((e) => ({
+      noise: noiseEntries.map((e: Record<string, any>) => ({
         frequency: e.frequency ?? null,
         currentScan: e.currentScan ?? null,
         weightedAverageScan: e.weightedAverageScan ?? null,
+        sourceLabel: e.sourceLabel ?? null,
       })),
     };
   }
@@ -157,3 +185,5 @@ export class LoraEvaluationService {
     return { ok: true };
   }
 }
+
+

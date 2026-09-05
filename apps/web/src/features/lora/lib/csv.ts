@@ -121,14 +121,6 @@ export function parseLoraMeasuresCsv(text: string): CreateLoraMeasureInput[] {
   if (rows.length === 0) return [];
   const headers = rows[0];
   const dataRows = rows.slice(1);
-  const firstRow = dataRows[0] ?? [];
-
-  const blocks: LoraMeasureBlockInput[] = [];
-  for (const role of ["master", "slave"] as const) {
-    const indexes = findBlockIndexes(headers, role);
-    const block = buildBlock(firstRow, indexes, role === "master" ? "Master" : "Slave");
-    if (block) blocks.push(block);
-  }
 
   const norm = headers.map(normalize);
   const findPlain = (frag: string): number => {
@@ -140,17 +132,34 @@ export function parseLoraMeasuresCsv(text: string): CreateLoraMeasureInput[] {
   const txIdx = findPlain("txpower");
   const sfIdx = findPlain("sf");
 
-  const time =
-    timeIdx >= 0 ? getRowCell(firstRow, timeIdx)?.trim() || null : null;
-  const txPower =
-    txIdx >= 0 ? getRowCell(firstRow, txIdx)?.trim() || null : null;
-  const spreadingFactor =
-    sfIdx >= 0 ? getRowCell(firstRow, sfIdx)?.trim() || null : null;
-  const location = blocks.find((b) => b.location)?.location ?? null;
+  const results: CreateLoraMeasureInput[] = [];
 
-  if (blocks.length === 0) return [];
+  for (const dataRow of dataRows) {
+    const blocks: LoraMeasureBlockInput[] = [];
+    for (const role of ["master", "slave"] as const) {
+      const indexes = findBlockIndexes(headers, role);
+      const block = buildBlock(
+        dataRow,
+        indexes,
+        role === "master" ? "Master" : "Slave"
+      );
+      if (block) blocks.push(block);
+    }
 
-  return [{ location, time, txPower, spreadingFactor, blocks }];
+    const time =
+      timeIdx >= 0 ? getRowCell(dataRow, timeIdx)?.trim() || null : null;
+    const txPower =
+      txIdx >= 0 ? getRowCell(dataRow, txIdx)?.trim() || null : null;
+    const spreadingFactor =
+      sfIdx >= 0 ? getRowCell(dataRow, sfIdx)?.trim() || null : null;
+    const location = blocks.find((b) => b.location)?.location ?? null;
+
+    if (blocks.length > 0) {
+      results.push({ location, time, txPower, spreadingFactor, blocks });
+    }
+  }
+
+  return results;
 }
 
 export function parseLoraNoiseCsv(text: string): CreateLoraNoiseInput[] {

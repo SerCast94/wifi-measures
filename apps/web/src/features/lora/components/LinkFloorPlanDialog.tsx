@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, Unlink, Upload } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Link, Map as MapIcon, Unlink } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/core/atomic-components/button";
@@ -19,8 +19,8 @@ import {
   SelectValue,
 } from "@/core/atomic-components/select";
 import { useFloorPlansMinimal } from "@/features/floorplans/hooks/use-floorplans";
-import { useLinkLoraAuditFloorPlan } from "../hooks/use-lora";
-import { UploadFloorPlanDialog } from "@/features/floorplans/components/UploadFloorPlanDialog";
+import { useLoraAudit, useLinkLoraAuditFloorPlan } from "../hooks/use-lora";
+import { CreateFloorPlanFromMapDialog } from "@/features/floorplans/components/CreateFloorPlanFromMapDialog";
 import type { FloorPlan } from "@/features/floorplans/types/floorplan.types";
 
 interface LinkFloorPlanDialogProps {
@@ -39,11 +39,30 @@ export const LinkFloorPlanDialog = ({
   onLinked,
 }: LinkFloorPlanDialogProps) => {
   const { data: plans = [] } = useFloorPlansMinimal();
+  const { data: audit } = useLoraAudit(auditId);
   const linkMutation = useLinkLoraAuditFloorPlan();
   const [selectedId, setSelectedId] = useState<string>(
     currentFloorPlanId?.toString() ?? ""
   );
-  const [showUpload, setShowUpload] = useState(false);
+  const [showMap, setShowMap] = useState(false);
+
+  const initialPoints = useMemo(() => {
+    const pts: Array<{ lat: number; lon: number }> = [];
+    if (!audit) return pts;
+    for (const measure of audit.measures) {
+      for (const block of measure.blocks) {
+        if (block.latitude != null && block.longitude != null) {
+          pts.push({ lat: block.latitude, lon: block.longitude });
+        }
+      }
+    }
+    for (const noise of audit.noise) {
+      if (noise.latitude != null && noise.longitude != null) {
+        pts.push({ lat: noise.latitude, lon: noise.longitude });
+      }
+    }
+    return pts;
+  }, [audit]);
 
   const handleLink = async () => {
     const floorPlanId = selectedId ? Number(selectedId) : null;
@@ -72,21 +91,29 @@ export const LinkFloorPlanDialog = ({
     }
   };
 
-  const handleUploadDone = (plan: FloorPlan) => {
-    setShowUpload(false);
-    setSelectedId(plan.id.toString());
-    toast.success(`Plano "${plan.name}" creado. Ahora selecciónalo y pulsa Vincular.`);
+  const handleMapCreated = async (plan: FloorPlan) => {
+    setShowMap(false);
+    try {
+      await linkMutation.mutateAsync({ auditId, floorPlanId: plan.id });
+      toast.success(`Plano «${plan.name}» creado y vinculado a la auditoría`);
+      onOpenChange(false);
+      onLinked(plan);
+    } catch (err) {
+      toast.error(
+        `Plano creado pero no se pudo vincular: ${(err as Error).message}`
+      );
+    }
   };
 
   return (
     <>
-      <Dialog open={open && !showUpload} onOpenChange={onOpenChange}>
+      <Dialog open={open && !showMap} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Vincular plano a auditoría</DialogTitle>
             <DialogDescription>
-              Selecciona un plano existente o sube uno nuevo para usarlo como base
-              del mapa de calor.
+              Selecciona un plano ya subido o genera uno a partir del mapa para
+              usarlo como base del mapa de calor.
             </DialogDescription>
           </DialogHeader>
 
@@ -109,10 +136,10 @@ export const LinkFloorPlanDialog = ({
               variant="outline"
               size="sm"
               className="w-full"
-              onClick={() => setShowUpload(true)}
+              onClick={() => setShowMap(true)}
             >
-              <Upload className="mr-2 h-4 w-4" />
-              Subir nuevo plano
+              <MapIcon className="mr-2 h-4 w-4" />
+              Generar plano desde mapa
             </Button>
           </div>
 
@@ -147,10 +174,11 @@ export const LinkFloorPlanDialog = ({
         </DialogContent>
       </Dialog>
 
-      <UploadFloorPlanDialog
-        open={showUpload}
-        onOpenChange={setShowUpload}
-        onUploaded={handleUploadDone}
+      <CreateFloorPlanFromMapDialog
+        open={showMap}
+        onOpenChange={setShowMap}
+        onCreated={handleMapCreated}
+        initialPoints={initialPoints}
       />
     </>
   );

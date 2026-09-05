@@ -16,6 +16,8 @@ export interface EvaluatedMetric {
   status: EvalStatus;
   label: string | null;
   message: string;
+  sourceLabel?: string | null;
+  elementRole?: string | null;
 }
 
 export interface LoraAnalysisBlock {
@@ -28,18 +30,21 @@ export interface LoraAnalysisBlock {
   longitude?: number | null;
   latitude?: number | null;
   location?: string | null;
+  sourceLabel?: string | null;
 }
 
 export interface LoraAnalysisNoiseEntry {
   frequency?: number | null;
   currentScan?: number | null;
   weightedAverageScan?: number | null;
+  sourceLabel?: string | null;
 }
 
 export interface LoraNoiseRecord {
   frequency?: number | null;
   currentScan?: number | null;
   weightedAverageScan?: number | null;
+  sourceLabel?: string | null;
 }
 
 export interface CoherenceResult {
@@ -183,10 +188,22 @@ const MARGIN_WARN = ["ACEPTABLE"];
 
 // ---------- Métricas por bloque (Master/Slave) ----------
 
+const composeOrigin = (
+  source?: string | null,
+  role?: string | null
+): string => {
+  const parts = [source, role].filter(
+    (p) => typeof p === "string" && p.trim().length > 0
+  );
+  return parts.length ? `${parts.join(" · ")}: ` : "";
+};
+
 export function evaluateRssi(
   rssi: number | null | undefined,
-  role?: string
+  role?: string,
+  sourceLabel?: string | null
 ): EvaluatedMetric {
+  const origin = composeOrigin(sourceLabel, role);
   const value = rssi === null || rssi === undefined ? null : Number(rssi);
   if (value === null || Number.isNaN(value)) {
     return {
@@ -196,7 +213,9 @@ export function evaluateRssi(
       unit: "dBm",
       status: "UNKNOWN",
       label: null,
-      message: `${role ? `${role}: ` : ""}RSSI sin dato capturado.`,
+      sourceLabel: sourceLabel ?? null,
+      elementRole: role ?? null,
+      message: `${origin}RSSI sin dato capturado.`,
     };
   }
   const level = rssiLevel(value);
@@ -207,14 +226,18 @@ export function evaluateRssi(
     unit: "dBm",
     status: levelToStatus(level, RSSI_OK, RSSI_WARN),
     label: level,
-    message: `${role ? `${role}: ` : ""}RSSI ${value.toFixed(0)} dBm → ${level}.`,
+    sourceLabel: sourceLabel ?? null,
+    elementRole: role ?? null,
+    message: `${origin}RSSI ${value.toFixed(0)} dBm → ${level}.`,
   };
 }
 
 export function evaluateSnr(
   snr: number | null | undefined,
-  role?: string
+  role?: string,
+  sourceLabel?: string | null
 ): EvaluatedMetric {
+  const origin = composeOrigin(sourceLabel, role);
   const value = snr === null || snr === undefined ? null : Number(snr);
   if (value === null || Number.isNaN(value)) {
     return {
@@ -224,7 +247,9 @@ export function evaluateSnr(
       unit: "dB",
       status: "UNKNOWN",
       label: null,
-      message: `${role ? `${role}: ` : ""}SNR sin dato capturado.`,
+      sourceLabel: sourceLabel ?? null,
+      elementRole: role ?? null,
+      message: `${origin}SNR sin dato capturado.`,
     };
   }
   const level = snrLevel(value);
@@ -235,7 +260,9 @@ export function evaluateSnr(
     unit: "dB",
     status: levelToStatus(level, SNR_OK, SNR_WARN),
     label: level,
-    message: `${role ? `${role}: ` : ""}SNR ${value.toFixed(1)} dB → ${level}.`,
+    sourceLabel: sourceLabel ?? null,
+    elementRole: role ?? null,
+    message: `${origin}SNR ${value.toFixed(1)} dB → ${level}.`,
   };
 }
 
@@ -243,6 +270,7 @@ export function evaluatePacketLoss(
   block: LoraAnalysisBlock,
   role?: string
 ): EvaluatedMetric {
+  const origin = composeOrigin(block.sourceLabel, role);
   const total = block.totalPackets ?? null;
   const lossPct =
     block.packetLossPct === null || block.packetLossPct === undefined
@@ -258,12 +286,14 @@ export function evaluatePacketLoss(
       unit: "%",
       status: "UNKNOWN",
       label: null,
-      message: `${role ? `${role}: ` : ""}Pérdida de paquetes sin dato (necesita total y % de pérdida).`,
+      sourceLabel: block.sourceLabel ?? null,
+      elementRole: role ?? null,
+      message: `${origin}Pérdida de paquetes sin dato (necesita total y % de pérdida).`,
     };
   }
 
   const level = packetLossLevel(lossPct);
-  let message = `${role ? `${role}: ` : ""}Pérdida ${lossPct.toFixed(1)}% sobre ${totalN} paquetes → ${level}.`;
+  let message = `${origin}Pérdida ${lossPct.toFixed(1)}% sobre ${totalN} paquetes → ${level}.`;
   const confidence =
     totalN < LORA_BAREMO.packetConfidence.low
       ? "baja"
@@ -280,6 +310,8 @@ export function evaluatePacketLoss(
     unit: "%",
     status: levelToStatus(level, LOSS_OK, LOSS_WARN),
     label: level,
+    sourceLabel: block.sourceLabel ?? null,
+    elementRole: role ?? null,
     message,
   };
 }
@@ -289,6 +321,7 @@ export function evaluateMargin(
   noiseFloor: number | null,
   role?: string
 ): EvaluatedMetric {
+  const origin = composeOrigin(block.sourceLabel, role);
   const rssi =
     block.rssi === null || block.rssi === undefined ? null : Number(block.rssi);
   if (
@@ -304,7 +337,9 @@ export function evaluateMargin(
       unit: "dB",
       status: "UNKNOWN",
       label: null,
-      message: `${role ? `${role}: ` : ""}Margen radio (RSSI − ruido) sin dato suficiente.`,
+      sourceLabel: block.sourceLabel ?? null,
+      elementRole: role ?? null,
+      message: `${origin}Margen radio (RSSI − ruido) sin dato suficiente.`,
     };
   }
   const margin = rssi - noiseFloor;
@@ -316,7 +351,9 @@ export function evaluateMargin(
     unit: "dB",
     status: levelToStatus(level, MARGIN_OK, MARGIN_WARN),
     label: level,
-    message: `${role ? `${role}: ` : ""}Margen radio ${margin.toFixed(1)} dB (RSSI ${rssi.toFixed(0)} − ruido ${noiseFloor.toFixed(0)} dBm) → ${level}.`,
+    sourceLabel: block.sourceLabel ?? null,
+    elementRole: role ?? null,
+    message: `${origin}Margen radio ${margin.toFixed(1)} dB (RSSI ${rssi.toFixed(0)} − ruido ${noiseFloor.toFixed(0)} dBm) → ${level}.`,
   };
 }
 
@@ -346,6 +383,7 @@ export function evaluateNoiseEntry(entry: LoraNoiseRecord): EvaluatedMetric {
     freq !== null && !Number.isNaN(freq)
       ? noiseCategoryLabel(Number(freq))
       : "RUIDO";
+  const origin = composeOrigin(entry.sourceLabel, category);
 
   if (current === null || Number.isNaN(current) || weighted === null) {
     return {
@@ -355,7 +393,9 @@ export function evaluateNoiseEntry(entry: LoraNoiseRecord): EvaluatedMetric {
       unit: "dBm",
       status: "UNKNOWN",
       label: null,
-      message: `${category}: ruido de scan no disponible (falta scan actual o media ponderada).`,
+      sourceLabel: entry.sourceLabel ?? null,
+      elementRole: category,
+      message: `${origin}ruido de scan no disponible (falta scan actual o media ponderada).`,
     };
   }
 
@@ -368,7 +408,9 @@ export function evaluateNoiseEntry(entry: LoraNoiseRecord): EvaluatedMetric {
     unit: "dB",
     status: levelToStatus(level, DELTA_OK, DELTA_WARN),
     label: level,
-    message: `${category}: ruido actual ${current.toFixed(0)} dBm vs media ${weighted.toFixed(0)} dBm (Δ ${deltaBm.toFixed(1)} dB) → ${level}.`,
+    sourceLabel: entry.sourceLabel ?? null,
+    elementRole: category,
+    message: `${origin}ruido actual ${current.toFixed(0)} dBm vs media ${weighted.toFixed(0)} dBm (Δ ${deltaBm.toFixed(1)} dB) → ${level}.`,
   };
 }
 
@@ -625,8 +667,9 @@ export function analyzeLora(
   // Métricas por bloque (Master/Slave)
   for (const block of blocks) {
     const label = block.role ? String(block.role) : undefined;
-    evaluations.push(evaluateRssi(block.rssi, label));
-    evaluations.push(evaluateSnr(block.snr, label));
+    const origin = composeOrigin(block.sourceLabel, label);
+    evaluations.push(evaluateRssi(block.rssi, label, block.sourceLabel));
+    evaluations.push(evaluateSnr(block.snr, label, block.sourceLabel));
     evaluations.push(evaluatePacketLoss(block, label));
     evaluations.push(evaluateMargin(block, noiseFloor, label));
 
@@ -638,9 +681,11 @@ export function analyzeLora(
       value: null,
       unit: null,
       status: coherenceResult.status,
+      sourceLabel: block.sourceLabel ?? null,
+      elementRole: label ?? null,
       label:
         coherenceResult.case === "—" ? null : `Caso ${coherenceResult.case}`,
-      message: `${label ? `${label}: ` : ""}${coherenceResult.title}. ${coherenceResult.message}`,
+      message: `${origin}${coherenceResult.title}. ${coherenceResult.message}`,
     });
   }
 

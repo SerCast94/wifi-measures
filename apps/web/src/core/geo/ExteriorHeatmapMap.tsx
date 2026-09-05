@@ -185,24 +185,6 @@ export const ExteriorHeatmapMap = ({
     [points]
   );
 
-  const heatPoints = useMemo<[number, number, number][]>(
-    () => validPoints.map((p) => [p.lat, p.lon, p.value]),
-    [validPoints]
-  );
-
-  const range = useMemo(() => {
-    if (validPoints.length === 0) return { min: 0, max: 1 };
-    const values = validPoints.map((p) => p.value);
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    return max === min ? { min: min - 1, max: max + 1 } : { min, max };
-  }, [validPoints]);
-
-  const center: [number, number] =
-    validPoints.length > 0
-      ? [validPoints[0].lat, validPoints[0].lon]
-      : [40.4168, -3.7038];
-
   const floorPlanBounds = useMemo(() => {
     if (!floorPlan?.geoCalibration) return null;
     const geo = floorPlan.geoCalibration;
@@ -212,7 +194,46 @@ export const ExteriorHeatmapMap = ({
     );
   }, [floorPlan]);
 
-  if (validPoints.length === 0 && !noisePoint) {
+  const { planPoints, omittedCount, noiseInsidePlan } = useMemo(() => {
+    if (!floorPlanBounds) {
+      return {
+        planPoints: validPoints,
+        omittedCount: 0,
+        noiseInsidePlan: true,
+      };
+    }
+    const planPoints = validPoints.filter((p) =>
+      floorPlanBounds.contains([p.lat, p.lon])
+    );
+    const noiseInsidePlan =
+      noisePoint == null ||
+      (Number.isFinite(noisePoint.lat) &&
+        Number.isFinite(noisePoint.lon) &&
+        floorPlanBounds.contains([noisePoint.lat, noisePoint.lon]));
+    const omitted =
+      validPoints.length - planPoints.length + (noiseInsidePlan ? 0 : 1);
+    return { planPoints, omittedCount: omitted, noiseInsidePlan };
+  }, [validPoints, floorPlanBounds, noisePoint]);
+
+  const heatPoints = useMemo<[number, number, number][]>(
+    () => planPoints.map((p) => [p.lat, p.lon, p.value]),
+    [planPoints]
+  );
+
+  const range = useMemo(() => {
+    if (planPoints.length === 0) return { min: 0, max: 1 };
+    const values = planPoints.map((p) => p.value);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    return max === min ? { min: min - 1, max: max + 1 } : { min, max };
+  }, [planPoints]);
+
+  const center: [number, number] =
+    planPoints.length > 0
+      ? [planPoints[0].lat, planPoints[0].lon]
+      : [40.4168, -3.7038];
+
+  if (planPoints.length === 0 && !(noisePoint && noiseInsidePlan)) {
     return <EmptyState metricLabel={metricLabel} />;
   }
 
@@ -245,7 +266,7 @@ export const ExteriorHeatmapMap = ({
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
         )}
-        {validPoints.length > 0 && (
+        {planPoints.length > 0 && (
           <HeatLayer
             points={heatPoints}
             options={{
@@ -263,7 +284,7 @@ export const ExteriorHeatmapMap = ({
             }}
           />
         )}
-        {validPoints.map((p, index) => (
+        {planPoints.map((p, index) => (
           <Marker
             key={`${p.lat}-${p.lon}-${index}`}
             position={[p.lat, p.lon]}
@@ -280,7 +301,10 @@ export const ExteriorHeatmapMap = ({
             </Tooltip>
           </Marker>
         ))}
-        {noisePoint && Number.isFinite(noisePoint.lat) && Number.isFinite(noisePoint.lon) && (
+        {noisePoint &&
+          noiseInsidePlan &&
+          Number.isFinite(noisePoint.lat) &&
+          Number.isFinite(noisePoint.lon) && (
           <Marker
             position={[noisePoint.lat, noisePoint.lon]}
             icon={noiseMarkerIcon()}
@@ -294,9 +318,16 @@ export const ExteriorHeatmapMap = ({
             </Tooltip>
           </Marker>
         )}
-        <FitBounds points={validPoints} floorPlan={floorPlan} />
+        <FitBounds points={planPoints} floorPlan={floorPlan} />
       </MapContainer>
       <Legend metricLabel={metricLabel} unit={unit} min={range.min} max={range.max} />
+      {omittedCount > 0 && (
+        <div className="pointer-events-none absolute right-3 top-3 z-[1000] max-w-[220px] rounded-lg border bg-card/95 px-2.5 py-1.5 text-[11px] font-medium text-foreground shadow">
+          {omittedCount}{" "}
+          {omittedCount === 1 ? "punto fuera" : "puntos fuera"} del plano
+          omitido{omittedCount === 1 ? "" : "s"} del mapa
+        </div>
+      )}
     </div>
   );
 };
