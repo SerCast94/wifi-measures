@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { Map as MapIcon, Unlink } from "lucide-react";
 
 import { Badge } from "@/core/atomic-components/badge";
 import { Button } from "@/core/atomic-components/button";
@@ -11,10 +12,20 @@ import {
 import { Input } from "@/core/atomic-components/input";
 import { Label } from "@/core/atomic-components/label";
 import { MultiSelect } from "@/core/atomic-components/multiselect";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/core/atomic-components/select";
 import { LoraCsvUploadButton } from "./LoraCsvUploadButton";
 import { useLoraMeasures, useLoraNoise } from "../hooks/use-lora";
+import { useFloorPlansMinimal } from "@/features/floorplans/hooks/use-floorplans";
+import { CreateFloorPlanFromMapDialog } from "@/features/floorplans/components/CreateFloorPlanFromMapDialog";
 import type { CreateLoraAuditInput } from "../api/lora-api";
 import type { LoraAudit, LoraMeasure, LoraNoise } from "../types/lora.types";
+import type { FloorPlan } from "@/features/floorplans/types/floorplan.types";
 
 interface LoraAuditFormProps {
   initial?: LoraAudit;
@@ -36,6 +47,7 @@ export const LoraAuditForm = ({
 }: LoraAuditFormProps) => {
   const { data: measures } = useLoraMeasures();
   const { data: noise } = useLoraNoise();
+  const { data: plans = [] } = useFloorPlansMinimal();
 
   const [measureIds, setMeasureIds] = useState<string[]>(
     (initial?.measures ?? []).map((m) => String(m.id))
@@ -43,6 +55,10 @@ export const LoraAuditForm = ({
   const [noiseIds, setNoiseIds] = useState<string[]>(
     (initial?.noise ?? []).map((n) => String(n.id))
   );
+  const [floorPlanId, setFloorPlanId] = useState<string>(
+    initial?.floorPlanId ? String(initial.floorPlanId) : ""
+  );
+  const [showMapDialog, setShowMapDialog] = useState(false);
   const [form, setForm] = useState({
     name: initial?.name ?? "",
     code: initial?.code ?? "",
@@ -85,11 +101,39 @@ export const LoraAuditForm = ({
       endDate: form.endDate ? new Date(form.endDate).toISOString() : null,
       measureIds: measureIds.map((id) => Number(id)),
       noiseIds: noiseIds.map((id) => Number(id)),
+      floorPlanId: floorPlanId ? Number(floorPlanId) : null,
     });
   };
 
+  const initialPoints = useMemo(() => {
+    const pts: Array<{ lat: number; lon: number }> = [];
+    for (const measure of measures ?? []) {
+      if (!measureIds.includes(String(measure.id))) continue;
+      for (const block of measure.blocks ?? []) {
+        if (block.latitude != null && block.longitude != null) {
+          pts.push({ lat: block.latitude, lon: block.longitude });
+        }
+      }
+    }
+    for (const noiseRow of noise ?? []) {
+      if (!noiseIds.includes(String(noiseRow.id))) continue;
+      if (noiseRow.latitude != null && noiseRow.longitude != null) {
+        pts.push({ lat: noiseRow.latitude, lon: noiseRow.longitude });
+      }
+    }
+    return pts;
+  }, [measures, noise, measureIds, noiseIds]);
+
+  const selectedPlan = plans.find((p) => p.id === Number(floorPlanId)) ?? null;
+
+  const handleMapCreated = (plan: FloorPlan) => {
+    setFloorPlanId(String(plan.id));
+    setShowMapDialog(false);
+  };
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <>
+      <form onSubmit={handleSubmit} className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Datos generales</CardTitle>
@@ -266,6 +310,74 @@ export const LoraAuditForm = ({
       </Card>
 
       <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center text-base">
+            Plano asociado
+            {selectedPlan ? (
+              <Badge variant="secondary" className="ml-2">
+                {selectedPlan.name}
+              </Badge>
+            ) : null}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="flex flex-col items-stretch gap-2 sm:flex-row">
+            <div className="grid flex-1 gap-2">
+              <Label>Seleccionar plano existente</Label>
+              <Select
+                value={floorPlanId}
+                onValueChange={(value) => setFloorPlanId(value || "")}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sin plano…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {plans.map((plan) => (
+                    <SelectItem key={plan.id} value={plan.id.toString()}>
+                      {plan.name}
+                      {plan.floorZone ? ` (${plan.floorZone})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>&nbsp;</Label>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowMapDialog(true)}
+              >
+                <MapIcon className="mr-2 h-4 w-4" />
+                Generar desde mapa
+              </Button>
+            </div>
+          </div>
+          {selectedPlan ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <p className="flex-1">
+                Se usará como base del mapa de calor del informe.
+              </p>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setFloorPlanId("")}
+              >
+                <Unlink className="mr-2 h-4 w-4" />
+                Desvincular
+              </Button>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Selecciona un plano ya subido o genera uno a partir del mapa para
+              usarlo como base del mapa de calor del informe.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardHeader>
           <CardTitle className="text-base">Planificación</CardTitle>
         </CardHeader>
@@ -302,5 +414,13 @@ export const LoraAuditForm = ({
         </Button>
       </div>
     </form>
+
+    <CreateFloorPlanFromMapDialog
+      open={showMapDialog}
+      onOpenChange={setShowMapDialog}
+      onCreated={handleMapCreated}
+      initialPoints={initialPoints}
+    />
+    </>
   );
 };

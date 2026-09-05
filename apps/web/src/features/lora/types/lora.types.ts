@@ -108,6 +108,8 @@ export interface LoraCoherence {
   status: LoraEvalStatus;
   message: string;
   recommendation: string;
+  sourceLabel?: string | null;
+  elementRole?: string | null;
 }
 
 export interface LoraAnalysisSummary {

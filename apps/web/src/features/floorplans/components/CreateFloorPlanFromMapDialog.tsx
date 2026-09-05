@@ -258,6 +258,7 @@ export const CreateFloorPlanFromMapDialog = ({
                 center={[40.4168, -3.7038]}
                 zoom={15}
                 scrollWheelZoom
+                zoomControl={false}
                 className="h-full w-full"
               >
                 <TileLayer

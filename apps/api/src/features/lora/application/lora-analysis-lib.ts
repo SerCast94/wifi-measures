@@ -53,6 +53,8 @@ export interface CoherenceResult {
   status: EvalStatus;
   message: string;
   recommendation: string;
+  sourceLabel?: string | null;
+  elementRole?: string | null;
 }
 
 /**
@@ -674,7 +676,11 @@ export function analyzeLora(
     evaluations.push(evaluateMargin(block, noiseFloor, label));
 
     const coherenceResult = coherenceAnalysis(block, noiseFloor);
-    coherence.push(coherenceResult);
+    coherence.push({
+      ...coherenceResult,
+      sourceLabel: block.sourceLabel ?? null,
+      elementRole: label ?? null,
+    });
     evaluations.push({
       category: "COHERENCIA",
       metric: "COHERENCIA",

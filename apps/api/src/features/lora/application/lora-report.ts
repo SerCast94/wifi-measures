@@ -20,6 +20,18 @@ const esc = (value: unknown): string =>
 const fmtDate = (value: any): string =>
   value ? new Date(value).toLocaleDateString("es-ES") : "—";
 
+const fmtDateRange = (
+  start?: string | null,
+  end?: string | null
+): string => {
+  const s = fmtDate(start);
+  const e = fmtDate(end);
+  if (s === "—" && e === "—") return "—";
+  if (s === "—") return `Hasta ${e}`;
+  if (e === "—") return `Desde ${s}`;
+  return `${s} – ${e}`;
+};
+
 const fmtNum = (value: any, digits = 1): string =>
   value === null ||
   value === undefined ||
@@ -366,6 +378,50 @@ function planHeatmapsHtml(
 
 // ---------- Sección de análisis ----------
 
+const COHERENCE_CASE_ORDER = ["A", "B", "C", "D", "E", "F"];
+
+function coherenceHtml(coherence: Array<Record<string, any>>): string {
+  const byCase = new Map<string, Array<Record<string, any>>>();
+  for (const item of coherence) {
+    const key = item.case === "—" ? "—" : String(item.case);
+    if (!byCase.has(key)) byCase.set(key, []);
+    byCase.get(key)!.push(item);
+  }
+  const rank = (key: string): number => {
+    if (key === "—") return 99;
+    const idx = COHERENCE_CASE_ORDER.indexOf(key);
+    return idx === -1 ? 50 : idx;
+  };
+  const keys = [...byCase.keys()].sort((a, b) => rank(a) - rank(b));
+  if (keys.length === 0)
+    return '<p class="muted">Sin coherencia evaluada.</p>';
+  return keys
+    .map((key) => {
+      const items = byCase.get(key)!;
+      const caseLabel = key === "—" ? "Sin caso" : `Caso ${esc(key)}`;
+      const title = esc(String(items[0].title ?? "—"));
+      const rows = items
+        .map((item) => {
+          const blockInfo = [item.sourceLabel, item.elementRole]
+            .filter(Boolean)
+            .join(" · ");
+          return `<tr>
+            <td>${esc(blockInfo) || "—"}</td>
+            <td style="color:${statusColor(item.status)}">${esc(statusLabel(item.status))}</td>
+            <td>${esc(item.message)}</td>
+            <td>${esc(item.recommendation)}</td>
+          </tr>`;
+        })
+        .join("");
+      return `<h4>${caseLabel} — ${title} <span class="muted" style="font-weight:normal;font-size:10px">(${items.length} bloque${items.length === 1 ? "" : "s"})</span></h4>
+        <table>
+          <thead><tr><th>Bloque</th><th>Estado</th><th>Observación</th><th>Recomendación</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+    })
+    .join("");
+}
+
 function analysisHtml(
   blocks: Array<Record<string, any>>,
   noiseEntries: Array<Record<string, any>>,
@@ -446,12 +502,8 @@ function analysisHtml(
     ${elementDetailHtml(evaluations, measures, noiseRecords)}
 
     <h3>Coherencia cruzada</h3>
-    ${coherence
-      .map(
-        (c) =>
-          `<p><b>${esc(c.case === "—" ? "Sin caso" : `Caso ${c.case}`)} — ${esc(c.title)}</b>: <span style="color:${statusColor(c.status)}">${esc(statusLabel(c.status))}</span>. ${esc(c.message)} <i>Recomendación:</i> ${esc(c.recommendation)}</p>`
-      )
-      .join("")}
+    <p class="muted">Confronta las métricas de cada bloque (RSSI, SNR, pérdidas y margen) para detectar contradicciones entre la señal y la entrega de paquetes.</p>
+    ${coherenceHtml(coherence)}
 
     <h3>Recomendaciones</h3>
     <ul>${summary.recommendations.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>
@@ -608,6 +660,9 @@ export interface LoraReportData {
     technician?: string | null;
     auditDate?: string | null;
     objective?: string | null;
+    description?: string | null;
+    startDate?: string | null;
+    endDate?: string | null;
     result?: string | null;
     hasAnalysis?: boolean;
   };
@@ -775,7 +830,11 @@ export function renderLoraReportHtml(data: LoraReportData): string {
       <div><b>Proyecto:</b> ${esc(header.project) || "—"}</div>
       <div><b>Ubicación:</b> ${esc(header.location) || "—"}</div>
       <div><b>Técnico:</b> ${esc(header.technician) || "—"}</div>
-      <div><b>Fecha:</b> ${fmtDate(header.auditDate)}</div>
+      <div><b>Fecha:</b> ${
+        header.startDate || header.endDate
+          ? fmtDateRange(header.startDate, header.endDate)
+          : fmtDate(header.auditDate)
+      }</div>
     </div>
     ${
       header.result
@@ -793,13 +852,20 @@ export function renderLoraReportHtml(data: LoraReportData): string {
     <dt>Proyecto</dt><dd>${esc(header.project) || "—"}</dd>
     <dt>Ubicación</dt><dd>${esc(header.location) || "—"}</dd>
     <dt>Técnico</dt><dd>${esc(header.technician) || "—"}</dd>
-    <dt>Fecha</dt><dd>${fmtDate(header.auditDate)}</dd>
-    ${
-      header.objective
-        ? `<dt>Objetivo</dt><dd>${esc(header.objective)}</dd>`
-        : ""
-    }
+    <dt>Fechas</dt><dd>${
+      header.startDate || header.endDate
+        ? fmtDateRange(header.startDate, header.endDate)
+        : fmtDate(header.auditDate)
+    }</dd>
+    <dt>Fecha inicio</dt><dd>${fmtDate(header.startDate)}</dd>
+    <dt>Fecha fin</dt><dd>${fmtDate(header.endDate)}</dd>
+    <dt>Objetivo</dt><dd>${esc(header.objective) || "—"}</dd>
   </dl>
+  ${
+    header.description
+      ? `<p style="margin-top:10px"><b>Descripción:</b> ${esc(header.description)}</p>`
+      : ""
+  }
 
   <section><h2>Medidas LoRa (${(data.measures ?? []).length})</h2>${measuresHtml}</section>
 

@@ -168,29 +168,40 @@ const statusCounts = (
   return counts;
 };
 
-const aggregateCoherence = (coherence: LoraCoherence[]) => {
-  const map = new Map<string, { case: string; title: string }>();
+const COHERENCE_CASE_ORDER = ["A", "B", "C", "D", "E", "F"];
+
+const groupCoherence = (coherence: LoraCoherence[]) => {
+  const byCase = new Map<string, LoraCoherence[]>();
   for (const item of coherence) {
-    const key = item.case === "—" ? "—" : `Caso ${item.case}`;
-    map.set(key, { case: key, title: item.title });
+    const key = item.case === "—" ? "—" : item.case;
+    if (!byCase.has(key)) byCase.set(key, []);
+    byCase.get(key)!.push(item);
   }
-  return Array.from(map.values()).map(({ case: caseLabel, title }) => ({
-    caseLabel,
-    title,
-    total: coherence.filter((item) =>
-      item.case === "—"
-        ? caseLabel === "—"
-        : caseLabel === `Caso ${item.case}`
-    ).length,
-    byStatus: statusCounts(
-      coherence.filter((item) =>
-        item.case === "—"
-          ? caseLabel === "—"
-          : caseLabel === `Caso ${item.case}`
-      )
-    ),
-  }));
+  const rank = (key: string): number => {
+    if (key === "—") return 99;
+    const idx = COHERENCE_CASE_ORDER.indexOf(key);
+    return idx === -1 ? 50 : idx;
+  };
+  return Array.from(byCase.entries())
+    .sort(([a], [b]) => rank(a) - rank(b))
+    .map(([key, items]) => ({
+      caseLabel: key === "—" ? "Sin caso" : `Caso ${key}`,
+      title: items[0].title,
+      items,
+    }));
 };
+
+const CoherenceBlockLabel = ({
+  coherence,
+}: {
+  coherence: LoraCoherence;
+}) => (
+  <span>
+    {[coherence.sourceLabel, coherence.elementRole]
+      .filter(Boolean)
+      .join(" · ") || "—"}
+  </span>
+);
 
 const CategoryBadRows = ({
   rows,
@@ -438,7 +449,7 @@ const LoraAnalysisContent = ({
       (!filterSource || evaluation.sourceLabel === filterSource)
   );
 
-  const coherenceByCase = aggregateCoherence(analysis.coherence);
+  const coherenceGroups = groupCoherence(analysis.coherence);
 
   return (
     <>
@@ -624,73 +635,64 @@ const LoraAnalysisContent = ({
       <Card className="mb-4">
         <CardHeader className="pb-1">
           <CardTitle className="text-base">
-            Coherencia cruzada (resumen por caso)
+            Coherencia cruzada
+            <span className="ml-2 text-xs font-normal text-muted-foreground">
+              {analysis.coherence.length} bloque
+              {analysis.coherence.length === 1 ? "" : "s"} evaluados
+            </span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {coherenceByCase.length === 0 ? (
+        <CardContent className="space-y-2">
+          <p className="text-xs text-muted-foreground">
+            Confronta las métricas de cada bloque (RSSI, SNR, pérdidas y margen)
+            para detectar contradicciones entre la señal y la entrega de
+            paquetes.
+          </p>
+          {coherenceGroups.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               Sin bloques para evaluar.
             </p>
           ) : (
-            coherenceByCase.map(({ caseLabel, title, total, byStatus }) => (
-              <div key={caseLabel} className="border-b pb-3 last:border-b-0">
-                <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-sm font-medium">
-                    {caseLabel} — {title}
+            coherenceGroups.map((group) => (
+              <details
+                key={group.caseLabel}
+                className="border-b last:border-b-0"
+              >
+                <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-2 py-2">
+                  <span className="text-sm font-semibold">
+                    {group.caseLabel} — {group.title}
                     <span className="ml-2 text-xs font-normal text-muted-foreground">
-                      {total} bloque{total === 1 ? "" : "s"}
+                      {group.items.length} bloque
+                      {group.items.length === 1 ? "" : "s"}
                     </span>
                   </span>
-                  <div className="flex items-center gap-2 text-xs">
-                    {(["PASS", "WARNING", "FAIL", "UNKNOWN"] as const).map(
-                      (status) =>
-                        byStatus[status] > 0 ? (
-                          <span
-                            key={status}
-                            className="flex items-center gap-1"
-                            style={{ color: STATUS_COLORS[status] }}
-                          >
-                            <span
-                              className="inline-block h-2.5 w-2.5 rounded-full"
-                              style={{ backgroundColor: STATUS_COLORS[status] }}
-                            />
-                            {byStatus[status]}
-                          </span>
-                        ) : null
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-          {analysis.coherence.length > 0 && (
-            <details className="group">
-              <summary className="cursor-pointer text-sm font-semibold text-primary">
-                Ver detalle de los casos
-              </summary>
-              <div className="mt-3 space-y-3">
-                {analysis.coherence.map((coherence, index) => (
-                  <div key={index} className="border-b py-2 last:border-b-0">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-sm font-medium">
-                        {coherence.case === "—"
-                          ? "Sin caso"
-                          : `Caso ${coherence.case}`}{" "}
-                        — {coherence.title}
+                  <EvalStatusPill status={group.items[0].status} />
+                </summary>
+                <div className="space-y-3 pb-3">
+                  {group.items.map((item, index) => (
+                    <div
+                      key={index}
+                      className="flex items-start justify-between gap-2 rounded-md border p-3"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">
+                          <CoherenceBlockLabel coherence={item} />
+                        </p>
+                        <p className="mt-0.5 text-sm text-muted-foreground">
+                          {item.message}
+                        </p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          <b>Recomendación:</b> {item.recommendation}
+                        </p>
+                      </div>
+                      <span className="shrink-0">
+                        <EvalStatusPill status={item.status} />
                       </span>
-                      <EvalStatusPill status={coherence.status} />
                     </div>
-                    <p className="mt-0.5 text-sm text-muted-foreground">
-                      {coherence.message}
-                    </p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      <b>Recomendación:</b> {coherence.recommendation}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </details>
+                  ))}
+                </div>
+              </details>
+            ))
           )}
         </CardContent>
       </Card>
