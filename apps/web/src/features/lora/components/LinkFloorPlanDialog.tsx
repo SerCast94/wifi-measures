@@ -179,6 +179,7 @@ export const LinkFloorPlanDialog = ({
         onOpenChange={setShowMap}
         onCreated={handleMapCreated}
         initialPoints={initialPoints}
+        category="LORA"
       />
     </>
   );

@@ -60,9 +60,22 @@ export const normalizeGeoCalibration = (
 
 export type FloorPlanFileType = "image" | "pdf";
 
+const floorZoneOf = (plan: { floorZone?: string | null }): string =>
+  (plan.floorZone ?? "").trim().toLowerCase();
+
 export const isExteriorPlan = (plan: {
   floorZone?: string | null;
-}): boolean => (plan.floorZone ?? "").trim().toLowerCase() === "mapa exterior";
+}): boolean => floorZoneOf(plan).startsWith("mapa exterior");
+
+export const isExteriorWifiPlan = (plan: {
+  floorZone?: string | null;
+}): boolean => floorZoneOf(plan) === "mapa exterior wifi";
+
+export const isExteriorLoraPlan = (plan: {
+  floorZone?: string | null;
+}): boolean =>
+  floorZoneOf(plan) === "mapa exterior lora" ||
+  floorZoneOf(plan) === "mapa exterior";
 
 export interface FloorPlan {
   id: number;

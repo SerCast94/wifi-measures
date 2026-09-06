@@ -420,6 +420,7 @@ export const LoraAuditForm = ({
       onOpenChange={setShowMapDialog}
       onCreated={handleMapCreated}
       initialPoints={initialPoints}
+      category="LORA"
     />
     </>
   );

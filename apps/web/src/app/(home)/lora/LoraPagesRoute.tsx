@@ -12,6 +12,9 @@ const LoraAuditAnalysisPage = lazy(
   () => import("./[auditId]/analisis/LoraAuditAnalysisPage")
 );
 const LoraMapPage = lazy(() => import("./map/LoraMapPage"));
+const LoraHeatmapDetailPage = lazy(
+  () => import("./map/[heatmapId]/LoraHeatmapDetailPage")
+);
 
 const LoraPagesRoute: RouteItemType = {
   path: "lora",
@@ -22,6 +25,7 @@ const LoraPagesRoute: RouteItemType = {
     { path: "medidas", element: <LoraMeasuresPage /> },
     { path: "ruido", element: <LoraNoisePage /> },
     { path: "map", element: <LoraMapPage /> },
+    { path: "map/:heatmapId", element: <LoraHeatmapDetailPage /> },
     { path: ":auditId/analisis", element: <LoraAuditAnalysisPage /> },
     { path: ":auditId", element: <LoraAuditDetailPage /> },
   ],

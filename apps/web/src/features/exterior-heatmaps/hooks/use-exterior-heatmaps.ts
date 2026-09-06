@@ -6,6 +6,7 @@ import {
   createExteriorHeatmapFromAudit,
   createExteriorHeatmapFromLoraAudit,
   deleteExteriorHeatmap,
+  getExteriorHeatmap,
   getExteriorHeatmaps,
 } from "../api/exterior-heatmap-api";
 import type { ExteriorHeatmap } from "../types/exterior-heatmap.types";
@@ -14,6 +15,14 @@ export const useExteriorHeatmaps = () => {
   return useQuery<ExteriorHeatmap[]>({
     queryKey: [QUERY_KEYS.exteriorHeatmaps],
     queryFn: getExteriorHeatmaps,
+  });
+};
+
+export const useExteriorHeatmap = (id: string) => {
+  return useQuery<ExteriorHeatmap | null, AppError>({
+    queryKey: [QUERY_KEYS.exteriorHeatmaps, id],
+    queryFn: () => getExteriorHeatmap(id),
+    enabled: Boolean(id),
   });
 };
 

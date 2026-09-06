@@ -36,6 +36,7 @@ interface CreateFloorPlanFromMapDialogProps {
   onOpenChange: (open: boolean) => void;
   onCreated: (plan: FloorPlan) => void;
   initialPoints?: Array<{ lat: number; lon: number }> | null;
+  category?: "WIFI" | "LORA";
 }
 
 const MapBridge = ({ onReady }: { onReady: (map: L.Map) => void }) => {
@@ -69,6 +70,7 @@ export const CreateFloorPlanFromMapDialog = ({
   onOpenChange,
   onCreated,
   initialPoints = null,
+  category = "WIFI",
 }: CreateFloorPlanFromMapDialogProps) => {
   const mapRef = useRef<L.Map | null>(null);
   const [name, setName] = useState("");
@@ -223,7 +225,8 @@ export const CreateFloorPlanFromMapDialog = ({
         height: dimensions.height || 100,
         scale,
         geoCalibration,
-        floorZone: "mapa exterior",
+        floorZone:
+          category === "LORA" ? "mapa exterior lora" : "mapa exterior wifi",
         linkLiveId: upload?.id,
       });
 

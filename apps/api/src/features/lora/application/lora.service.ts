@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 
 import { DatabaseService } from "@core/database/database.service";
+import { ExteriorHeatmapService } from "@features/exterior-heatmaps/application/exterior-heatmap.service";
 
 export interface LoraMeasureBlockInput {
   role?: string | null;
@@ -57,7 +58,12 @@ export type UpdateLoraAuditInput = Partial<CreateLoraAuditInput>;
 
 @Injectable()
 export class LoraService {
-  constructor(private readonly database: DatabaseService) {}
+  private readonly logger = new Logger(LoraService.name);
+
+  constructor(
+    private readonly database: DatabaseService,
+    private readonly exteriorHeatmapService: ExteriorHeatmapService
+  ) {}
 
   private get client() {
     return this.database.getClient();
@@ -244,7 +250,17 @@ export class LoraService {
         },
       },
     });
-    return this.getAuditByIdOrThrow(created.id);
+    const audit = await this.getAuditByIdOrThrow(created.id);
+    if (audit.floorPlanId) {
+      this.exteriorHeatmapService
+        .createFromLoraAudit(created.id)
+        .catch((err: unknown) =>
+          this.logger.warn(
+            `No se pudo sincronizar el mapa exterior: ${this.errMessage(err)}`
+          )
+        );
+    }
+    return audit;
   }
 
   async updateAudit(id: string, input: UpdateLoraAuditInput) {
@@ -278,7 +294,22 @@ export class LoraService {
       }
     }
 
-    return this.getAuditByIdOrThrow(id);
+    const audit = await this.getAuditByIdOrThrow(id);
+    if (audit.floorPlanId) {
+      this.exteriorHeatmapService
+        .createFromLoraAudit(id)
+        .catch((err: unknown) =>
+          this.logger.warn(
+            `No se pudo sincronizar el mapa exterior: ${this.errMessage(err)}`
+          )
+        );
+    }
+    return audit;
+  }
+
+  private errMessage(err: unknown): string {
+    if (err instanceof Error) return err.message;
+    return String(err);
   }
 
   async updateAuditStatus(id: string, status: string) {

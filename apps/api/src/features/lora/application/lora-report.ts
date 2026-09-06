@@ -292,7 +292,7 @@ function planHeatmapsHtml(
   if (!image) return "";
   const geo = normalizeGeoCalibration(floorPlan?.geoCalibration);
   if (!geo)
-    return '<section class="break"><h2>Cobertura sobre el plano</h2><p class="muted">El plano base no está georreferenciado; no se puede dibujar el mapa de calor.</p></section>';
+    return '<section class="break"><h2 id="sec-cobertura">Cobertura sobre el plano</h2><p class="muted">El plano base no está georreferenciado; no se puede dibujar el mapa de calor.</p></section>';
 
   type Pt = { x: number; y: number; value: number; metric: string };
   const collect = (
@@ -371,7 +371,7 @@ function planHeatmapsHtml(
   }
   if (maps.length === 0) return "";
 
-  return `<section class="break"><h2>Cobertura sobre el plano</h2>
+  return `<section class="break"><h2 id="sec-cobertura">Cobertura sobre el plano</h2>
     <p class="muted">Plano base: ${esc(floorPlan.name ?? "—")}</p>
     ${maps.join("")}</section>`;
 }
@@ -484,7 +484,7 @@ function analysisHtml(
       <p class="muted">${noiseEntries.length} frecuencias del scan actual · agregadas por umbral.</p>`);
   }
 
-  return `<section class="break"><h2>Análisis del enlace</h2>
+  return `<section class="break"><h2 id="sec-analisis">Análisis del enlace</h2>
     <div class="kpis">
       <div class="kpi"><b>${total}</b>criterios</div>
       <div class="kpi"><b style="color:#16a34a">${summary.byStatus.PASS}</b>conformes</div>
@@ -492,23 +492,23 @@ function analysisHtml(
       <div class="kpi"><b style="color:#dc2626">${summary.byStatus.FAIL}</b>no conformes</div>
     </div>
 
-    <h3>Resultado global: ${esc(globalLabel(summary.globalResult))}</h3>
+    <h3 id="sec-analisis-global">Resultado global: ${esc(globalLabel(summary.globalResult))}</h3>
     ${summary.paragraphs.map((p) => `<p>${esc(p)}</p>`).join("")}
 
-    <h3>Resumen por categoría</h3>
+    <h3 id="sec-analisis-categorias">Resumen por categoría</h3>
     ${categorySummaryHtml(evaluations)}
 
-    <h3>Detalle por medida y ruido</h3>
+    <h3 id="sec-analisis-detalle">Detalle por medida y ruido</h3>
     ${elementDetailHtml(evaluations, measures, noiseRecords)}
 
-    <h3>Coherencia cruzada</h3>
+    <h3 id="sec-analisis-coherencia">Coherencia cruzada</h3>
     <p class="muted">Confronta las métricas de cada bloque (RSSI, SNR, pérdidas y margen) para detectar contradicciones entre la señal y la entrega de paquetes.</p>
     ${coherenceHtml(coherence)}
 
-    <h3>Recomendaciones</h3>
+    <h3 id="sec-analisis-recomendaciones">Recomendaciones</h3>
     <ul>${summary.recommendations.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>
 
-    <section class="break"><h3>Gráficas</h3>
+    <section class="break"><h3 id="sec-analisis-graficas">Gráficas</h3>
       <div class="chartgrid">
         ${charts.map((c) => `<div class="chartcell">${c}</div>`).join("") || '<p class="muted">Sin datos para gráficas.</p>'}
       </div>
@@ -678,6 +678,7 @@ export interface LoraReportData {
 
 export function renderLoraReportHtml(data: LoraReportData): string {
   const header = data.header ?? {};
+  const showCoverageSection = Boolean(data.floorPlan?.image);
 
   const measureHtml = (measure: Record<string, any>) => {
     if (!measure) return '<p class="muted">Sin datos.</p>';
@@ -820,6 +821,11 @@ export function renderLoraReportHtml(data: LoraReportData): string {
   .hl-labels { display:flex; flex-wrap:wrap; gap:4px 14px; margin-top:14px; }
   .hl-lbl { display:inline-flex; align-items:center; gap:4px; font-size:9px; color:#374151; }
   .hl-lbl i { display:inline-block; width:12px; height:12px; border-radius:2px; border:1px solid rgba(0,0,0,.1); }
+  .toc { page-break-after: always; }
+  .toc h2 { margin-top:0; }
+  .toc ol { font-size:12px; line-height:1.9; }
+  .toc a { color:#2563eb; text-decoration:none; }
+  .toc ul { list-style:circle; margin:0 0 0 24px; font-size:10.5px; line-height:1.7; }
 </style></head><body>
   <div class="cover">
     <h1>Informe de auditoría LoRa</h1>
@@ -842,6 +848,30 @@ export function renderLoraReportHtml(data: LoraReportData): string {
         : ""
     }
     <p style="margin-top:60px;font-size:10px;color:#6b7280">Generado el ${new Date().toLocaleString("es-ES")}</p>
+  </div>
+
+  <div class="toc">
+    <h2>Índice</h2>
+    <ol>
+      <li><a href="#sec-datos">Datos generales</a></li>
+      <li><a href="#sec-medidas">Medidas LoRa</a></li>
+      <li><a href="#sec-ruido">Ruido</a></li>
+      ${
+        showCoverageSection
+          ? '<li><a href="#sec-cobertura">Cobertura sobre el plano</a></li>'
+          : ""
+      }
+      <li><a href="#sec-analisis">Análisis del enlace</a>
+        <ul>
+          <li><a href="#sec-analisis-global">Resultado global</a></li>
+          <li><a href="#sec-analisis-categorias">Resumen por categoría</a></li>
+          <li><a href="#sec-analisis-detalle">Detalle por medida y ruido</a></li>
+          <li><a href="#sec-analisis-coherencia">Coherencia cruzada</a></li>
+          <li><a href="#sec-analisis-recomendaciones">Recomendaciones</a></li>
+          <li><a href="#sec-analisis-graficas">Gráficas</a></li>
+        </ul>
+      </li>
+    </ol>
   </div>
 
   <h2 id="sec-datos">Datos generales</h2>
@@ -867,9 +897,9 @@ export function renderLoraReportHtml(data: LoraReportData): string {
       : ""
   }
 
-  <section><h2>Medidas LoRa (${(data.measures ?? []).length})</h2>${measuresHtml}</section>
+  <section><h2 id="sec-medidas">Medidas LoRa (${(data.measures ?? []).length})</h2>${measuresHtml}</section>
 
-  <section class="break"><h2>Ruido (${(data.noise ?? []).length})</h2>${noiseHtml}</section>
+  <section class="break"><h2 id="sec-ruido">Ruido (${(data.noise ?? []).length})</h2>${noiseHtml}</section>
 
   ${planHeatmapsHtml(data.measures ?? [], data.noise ?? [], data.floorPlan, data.heatmapRadius)}
 

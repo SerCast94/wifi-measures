@@ -20,6 +20,19 @@ export const getExteriorHeatmaps = async (): Promise<ExteriorHeatmap[]> => {
   }
 };
 
+export const getExteriorHeatmap = async (
+  id: string
+): Promise<ExteriorHeatmap | null> => {
+  try {
+    const { data } = await apiClient.get<ApiResponseSuccess<ExteriorHeatmap | null>>(
+      `${VERSION}/exterior-heatmaps/${id}`
+    );
+    return data.data;
+  } catch (error) {
+    handleApiError(error);
+  }
+};
+
 export const getExteriorHeatmapByAudit = async (
   auditId: string
 ): Promise<ExteriorHeatmap[]> => {

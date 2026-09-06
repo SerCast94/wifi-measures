@@ -80,6 +80,10 @@ export class SurveyPresenter {
   status?: string | null;
   @ApiPropertyOptional({ type: "string", example: "MAPA PLANTA2.png" })
   floorPlanFilename?: string | null;
+  @ApiPropertyOptional({ type: "string" })
+  linkLiveFloorplanId?: string | null;
+  @ApiProperty({ type: "boolean", example: false })
+  isExteriorWifi: boolean;
   @ApiProperty({ type: "number", example: 4096 })
   floorPlanWidth: number;
   @ApiProperty({ type: "number", example: 1575 })
@@ -124,6 +128,8 @@ export class SurveyPresenter {
     this.unitSerial = survey.unitSerial ?? null;
     this.status = survey.status ?? null;
     this.floorPlanFilename = survey.floorPlanFilename ?? null;
+    this.linkLiveFloorplanId = survey.linkLiveFloorplanId ?? null;
+    this.isExteriorWifi = Boolean(survey.isExteriorWifi);
     this.floorPlanWidth = survey.floorPlanWidth ?? 0;
     this.floorPlanHeight = survey.floorPlanHeight ?? 0;
     this.floorPlanScaledWidth = survey.floorPlanScaledWidth ?? 0;

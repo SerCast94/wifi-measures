@@ -475,6 +475,7 @@ model ExteriorHeatmap {
 model LinkLiveSurvey {
   id                    Int                 @id @default(autoincrement())
   idLinkLive            String              @unique
+  linkLiveFloorplanId   String?             @map("link_live_floorplan_id")
   name                  String?
   surveyName            String?
   surveyDescription     String?

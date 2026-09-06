@@ -16,6 +16,8 @@ export interface SurveyMetric {
 export interface LinkLiveSurvey {
   id: number;
   idLinkLive: string;
+  linkLiveFloorplanId?: string | null;
+  isExteriorWifi: boolean;
   name: string | null;
   surveyName: string | null;
   surveyDescription: string | null;

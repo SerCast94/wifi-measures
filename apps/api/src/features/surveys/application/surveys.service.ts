@@ -11,6 +11,8 @@ interface SyncMetric {
   hostType: string;
 }
 
+type FloorPlanTagRow = { linkLiveId: string | null; floorZone: string | null };
+
 @Injectable()
 export class SurveysService {
   private readonly logger = new Logger(SurveysService.name);
@@ -29,9 +31,10 @@ export class SurveysService {
     const client = this.client;
     if (!client) return [];
 
-    return client.linkLiveSurvey.findMany({
+    const surveys = await client.linkLiveSurvey.findMany({
       orderBy: { surveyStartTime: "desc" },
     });
+    return this.decorateExteriorWifi(surveys);
   }
 
   async getById(id: string) {
@@ -70,7 +73,34 @@ export class SurveysService {
       }
     }
 
-    return synced;
+    return this.decorateExteriorWifi(synced);
+  }
+
+  private async decorateExteriorWifi(surveys: any[]): Promise<any[]> {
+    const client = this.client;
+    if (!client) return surveys;
+
+    const plans = await client.uploadedFloorPlan.findMany({
+      where: { linkLiveId: { not: null } },
+      select: { linkLiveId: true, floorZone: true },
+    });
+    const exteriorWifiIds = new Set(
+      (plans ?? [] as FloorPlanTagRow[])
+        .filter(
+          (plan: FloorPlanTagRow) =>
+            plan.floorZone?.trim().toLowerCase() === "mapa exterior wifi"
+        )
+        .map((plan: FloorPlanTagRow) => plan.linkLiveId)
+        .filter(Boolean)
+    );
+
+    return surveys.map((survey) => ({
+      ...survey,
+      isExteriorWifi: Boolean(
+        survey.linkLiveFloorplanId &&
+          exteriorWifiIds.has(String(survey.linkLiveFloorplanId))
+      ),
+    }));
   }
 
   private async syncOne(heatmap: any) {
@@ -90,11 +120,13 @@ export class SurveysService {
       detail.floorPlanScaledHeightPx ?? detail.floorPlanHeightPx ?? 0;
 
     let image: string | null = null;
+    let linkLiveFloorplanId: string | null = null;
     try {
       const floors = await this.linkLiveService.listHeatmapFloorplans(id);
       const floor =
         floors.find((f) => f.fileName === detail.floorPlanFilename) ??
         floors[0];
+      linkLiveFloorplanId = floor?._id ?? null;
       if (floor?.href) {
         const base64 = await this.linkLiveService.downloadImage(floor.href);
         image = `data:image/png;base64,${base64}`;
@@ -168,6 +200,7 @@ export class SurveysService {
 
     const payload = {
       idLinkLive: id,
+      linkLiveFloorplanId,
       name: this.stringOrNull(detail.fileName),
       surveyName: this.stringOrNull(detail.surveyName),
       surveyDescription: this.stringOrNull(detail.surveyDescription),

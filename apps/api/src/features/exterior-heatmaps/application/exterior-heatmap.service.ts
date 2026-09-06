@@ -94,7 +94,8 @@ export class ExteriorHeatmapService {
     if (!client) {
       throw new Error("Base de datos no disponible");
     }
-    const tipo = input.tipo ?? "WIFI";
+    const tipo: ExteriorHeatmapTipo =
+      input.tipo ?? (input.loraAuditId ? "LORA" : "WIFI");
     const item = await client.exteriorHeatmap.create({
       data: {
         name: input.name,
@@ -114,16 +115,21 @@ export class ExteriorHeatmapService {
     }
     const points = await this.buildPointsFromAudit(auditId);
     const name = `Mapa exterior auditoría ${auditId}`;
-    const tipo: ExteriorHeatmapTipo = "WIFI";
-    const item = await client.exteriorHeatmap.create({
-      data: {
-        name,
-        tipo,
-        auditId,
-        loraAuditId: null,
-        points: this.sanitizePoints(points),
-      },
-    });
+    const existing = await client.exteriorHeatmap.findFirst({ where: { auditId } });
+    const item = existing
+      ? await client.exteriorHeatmap.update({
+          where: { id: existing.id },
+          data: { name, points: this.sanitizePoints(points) },
+        })
+      : await client.exteriorHeatmap.create({
+          data: {
+            name,
+            tipo: "WIFI",
+            auditId,
+            loraAuditId: null,
+            points: this.sanitizePoints(points),
+          },
+        });
     return this.toData(item);
   }
 
@@ -134,16 +140,23 @@ export class ExteriorHeatmapService {
     }
     const points = await this.buildPointsFromLoraAudit(loraAuditId);
     const name = `Mapa exterior auditoría LoRa ${loraAuditId}`;
-    const tipo: ExteriorHeatmapTipo = "LORA";
-    const item = await client.exteriorHeatmap.create({
-      data: {
-        name,
-        tipo,
-        auditId: null,
-        loraAuditId,
-        points: this.sanitizePoints(points),
-      },
+    const existing = await client.exteriorHeatmap.findFirst({
+      where: { loraAuditId },
     });
+    const item = existing
+      ? await client.exteriorHeatmap.update({
+          where: { id: existing.id },
+          data: { name, points: this.sanitizePoints(points) },
+        })
+      : await client.exteriorHeatmap.create({
+          data: {
+            name,
+            tipo: "LORA",
+            auditId: null,
+            loraAuditId,
+            points: this.sanitizePoints(points),
+          },
+        });
     return this.toData(item);
   }
 

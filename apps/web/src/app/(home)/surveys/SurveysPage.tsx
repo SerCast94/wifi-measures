@@ -29,7 +29,9 @@ const formatDate = (value: string | null): string => {
 };
 
 const SurveysPage = () => {
-  const { data: surveys, isLoading, isError, refetch } = useSurveys();
+  const { data: allSurveys, isLoading, isError, refetch } = useSurveys();
+
+  const surveys = (allSurveys ?? []).filter((survey) => !survey.isExteriorWifi);
 
   return (
     <div className="w-full px-2 py-2 mx-auto mb-4 sm:px-10 sm:py-6 xl:px-16 xl:py-8 animate-in fade-in-0">
@@ -62,8 +64,8 @@ const SurveysPage = () => {
             </div>
           ) : !surveys || surveys.length === 0 ? (
             <p className="py-8 text-sm text-muted-foreground text-center">
-              No hay mapas de calor. Pulsa «Sincronizar Mapas» para importarlos
-              desde Link-Live.
+              No hay mapas de calor interiores. Pulsa «Sincronizar Mapas» para
+              importarlos desde Link-Live.
             </p>
           ) : (
             <Table>

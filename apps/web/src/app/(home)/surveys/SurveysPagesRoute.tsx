@@ -6,6 +6,9 @@ import { type RouteItemType } from "@/config/routes.config";
 const SurveysPage = lazy(() => import("./SurveysPage"));
 const SurveyPage = lazy(() => import("./[surveyId]/SurveyPage"));
 const WifiMapPage = lazy(() => import("./map/WifiMapPage"));
+const WifiHeatmapDetailPage = lazy(
+  () => import("./map/[heatmapId]/WifiHeatmapDetailPage")
+);
 
 const SurveysPagesRoute: RouteItemType = {
   path: "surveys",
@@ -18,6 +21,10 @@ const SurveysPagesRoute: RouteItemType = {
     {
       path: "map",
       element: <WifiMapPage />,
+    },
+    {
+      path: "map/:heatmapId",
+      element: <WifiHeatmapDetailPage />,
     },
     {
       path: ":surveyId",
