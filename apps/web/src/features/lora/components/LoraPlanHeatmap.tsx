@@ -1,5 +1,6 @@
 import { useMemo, type ReactNode } from "react";
 
+import { heatColor, heatGradientStops } from "@/core/geo/heatmap-colors";
 import { projectToImageXY } from "@/features/floorplans/lib/geo-projection";
 import { normalizeGeoCalibration } from "@/features/floorplans/types/floorplan.types";
 import type { GeoCalibration } from "@/features/floorplans/types/floorplan.types";
@@ -28,11 +29,6 @@ interface MetricSet {
 
 const MIN_ALPHA = 0.04;
 const MAX_ALPHA = 0.62;
-
-const colorFor = (t: number, alpha: number): string => {
-  const hue = Math.round(Math.max(0, Math.min(1, t)) * 120);
-  return `hsla(${hue}, 90%, 50%, ${alpha})`;
-};
 
 const noiseRecordValue = (noise: LoraNoise): number | null => {
   const valores = (noise.entries ?? [])
@@ -230,7 +226,7 @@ export const LoraPlanHeatmap = ({
             y={gy}
             width={cell}
             height={cell}
-            fill={colorFor(t, alpha)}
+            fill={heatColor(t, alpha)}
           />
         );
       }
@@ -287,12 +283,7 @@ export const LoraPlanHeatmap = ({
       min -= 1;
       max += 1;
     }
-    let gradStops = "";
-    for (let i = 0; i <= 20; i++) {
-      const t = i / 20;
-      const hue = Math.round(t * 120);
-      gradStops += `hsl(${hue},90%,50%) ${(t * 100).toFixed(1)}%${i < 20 ? "," : ""}`;
-    }
+    const gradStops = heatGradientStops();
     const ticks = metric.thresholds.map((th, index) => {
       const pct = max === min ? 50 : ((th.val - min) / (max - min)) * 100;
       if (pct < 0 || pct > 100) return null;

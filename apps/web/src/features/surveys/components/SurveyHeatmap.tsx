@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 
+import { heatColor } from "@/core/geo/heatmap-colors";
+
 export interface SurveyHeatmapPoint {
   x: number;
   y: number;
@@ -18,11 +20,6 @@ const MAX_CANVAS_WIDTH = 1600;
 const MIN_ALPHA = 0.04;
 const MAX_ALPHA = 0.62;
 const EPSILON = 1;
-
-const colorFor = (t: number, alpha: number): string => {
-  const hue = Math.max(0, Math.min(1, t)) * 120;
-  return `hsla(${hue}, 90%, 50%, ${alpha})`;
-};
 
 interface HeatPoint {
   x: number;
@@ -134,7 +131,7 @@ const drawHeat = (
 
         const value = valueSum / weightSum;
         const t = (value - range.min) / (range.max - range.min);
-        ctx.fillStyle = colorFor(t, alpha);
+        ctx.fillStyle = heatColor(t, alpha);
         ctx.fillRect(gx, gy, cell, cell);
       }
     }
@@ -183,7 +180,7 @@ const drawHeat = (
     const y = height - barHeight - 20;
     const gradient = ctx.createLinearGradient(x, 0, x + barWidth, 0);
     for (let i = 0; i <= 10; i++) {
-      gradient.addColorStop(i / 10, colorFor(i / 10, 1));
+      gradient.addColorStop(i / 10, heatColor(i / 10, 1));
     }
 
     ctx.save();

@@ -326,4 +326,103 @@ export class LoraService {
     await client.loraAudit.delete({ where: { id } });
     return { ok: true };
   }
+
+  // ---------- Estadísticas ----------
+
+  async getStats() {
+    const client = this.client;
+    const emptyEvaluations = {
+      PASS: 0,
+      WARNING: 0,
+      FAIL: 0,
+      UNKNOWN: 0,
+      total: 0,
+    };
+    if (!client)
+      return {
+        totals: {
+          audits: 0,
+          evaluations: emptyEvaluations,
+          measures: 0,
+          noise: 0,
+          auditsWithoutData: 0,
+          auditsWithoutPlan: 0,
+        },
+        globalResults: {},
+        byStatus: {},
+        recent: [],
+      };
+
+    const [byStatus, analysisGroups, recent, measures, noise, withoutData, withoutPlan] =
+      await Promise.all([
+        client.loraAudit.groupBy({ by: ["status"], _count: { _all: true } }),
+        client.loraAnalysis.groupBy({
+          by: ["auditId", "status"],
+          _count: { _all: true },
+        }),
+        client.loraAudit.findMany({
+          orderBy: { createdAt: "desc" },
+          take: 5,
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            client: true,
+            status: true,
+            floorPlanId: true,
+            createdAt: true,
+          },
+        }),
+        client.loraAuditMeasure.count(),
+        client.loraAuditNoise.count(),
+        client.loraAudit.count({
+          where: { measureLinks: { none: {} }, noiseLinks: { none: {} } },
+        }),
+        client.loraAudit.count({ where: { floorPlanId: null } }),
+      ]);
+
+    const byStatusMap: Record<string, number> = {};
+    for (const row of byStatus as any[])
+      byStatusMap[row.status] = row._count._all;
+
+    const perAudit = new Map<string, Record<string, number>>();
+    for (const row of analysisGroups as any[]) {
+      const map = perAudit.get(row.auditId) ?? { PASS: 0, WARNING: 0, FAIL: 0, UNKNOWN: 0 };
+      map[row.status] += row._count._all;
+      perAudit.set(row.auditId, map);
+    }
+
+    const globalResults: Record<string, number> = {};
+    const evaluations = { ...emptyEvaluations } as Record<string, number>;
+    for (const m of perAudit.values()) {
+      const meaningful = m.PASS + m.WARNING + m.FAIL;
+      const result =
+        meaningful === 0
+          ? "SIN_DATOS_SUFICIENTES"
+          : m.FAIL > 0
+            ? "NO_CONFORME"
+            : m.WARNING > 0
+              ? "APROBADO_CON_OBSERVACIONES"
+              : "APROBADO";
+      globalResults[result] = (globalResults[result] ?? 0) + 1;
+      for (const key of ["PASS", "WARNING", "FAIL", "UNKNOWN"] as const) {
+        evaluations[key] += m[key];
+        evaluations.total += m[key];
+      }
+    }
+
+    return {
+      totals: {
+        audits: Object.values(byStatusMap).reduce<number>((a, b) => a + b, 0),
+        evaluations,
+        measures,
+        noise,
+        auditsWithoutData: withoutData,
+        auditsWithoutPlan: withoutPlan,
+      },
+      globalResults,
+      byStatus: byStatusMap,
+      recent,
+    };
+  }
 }

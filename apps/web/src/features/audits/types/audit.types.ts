@@ -289,6 +289,7 @@ export interface AuditStats {
     openIssues: number;
     syncErrors: number;
   };
+  globalResults: Record<string, number>;
   byStatus: Record<string, number>;
   recent: Array<{
     id: string;

@@ -21,6 +21,7 @@ import {
   getLoraAudits,
   getLoraMeasures,
   getLoraNoise,
+  getLoraStats,
   runLoraAnalysis,
   updateLoraAuditStatus,
   updateLoraAudit,
@@ -34,6 +35,7 @@ import type {
   LoraAudit,
   LoraMeasure,
   LoraNoise,
+  LoraStats,
 } from "../types/lora.types";
 
 const loraKeys = (suffix: string) => [QUERY_KEYS.lora, suffix];
@@ -114,6 +116,12 @@ export const useLoraAudits = (q?: string) =>
   useQuery<LoraAudit[], AppError>({
     queryKey: loraKeys(`audits:${q ?? ""}`),
     queryFn: () => getLoraAudits(q),
+  });
+
+export const useLoraStats = () =>
+  useQuery<LoraStats, AppError>({
+    queryKey: loraKeys("stats"),
+    queryFn: getLoraStats,
   });
 
 export const useLoraAudit = (id: string) =>

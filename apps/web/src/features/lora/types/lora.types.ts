@@ -163,3 +163,31 @@ export const LORA_GLOBAL_RESULT_LABELS: Record<string, string> = {
   NO_CONFORME: "No conforme",
   SIN_DATOS_SUFICIENTES: "Sin datos suficientes",
 };
+
+export interface LoraStats {
+  totals: {
+    audits: number;
+    measures: number;
+    noise: number;
+    evaluations: {
+      PASS: number;
+      WARNING: number;
+      FAIL: number;
+      UNKNOWN: number;
+      total: number;
+    };
+    auditsWithoutData: number;
+    auditsWithoutPlan: number;
+  };
+  globalResults: Record<string, number>;
+  byStatus: Record<string, number>;
+  recent: Array<{
+    id: string;
+    name: string;
+    code: string | null;
+    client: string | null;
+    status: LoraAuditStatus;
+    floorPlanId: number | null;
+    createdAt: string;
+  }>;
+}

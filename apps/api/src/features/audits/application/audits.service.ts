@@ -752,11 +752,12 @@ export class AuditsService {
     if (!client)
       return {
         totals: { audits: 0, evaluations: emptyEvaluations, openIssues: 0 },
+        globalResults: {},
         byStatus: {},
         recent: [],
       };
 
-    const [byStatus, evalGroup, openIssues, recent, syncErrors] =
+    const [byStatus, evalGroup, openIssues, recent, syncErrors, conclusions] =
       await Promise.all([
         client.audit.groupBy({ by: ["status"], _count: { _all: true } }),
         client.auditEvaluation.groupBy({
@@ -784,7 +785,16 @@ export class AuditsService {
             startedAt: { gte: new Date(Date.now() - 7 * 864e5) },
           },
         }),
+        client.audit.findMany({
+          select: { conclusion: { select: { globalResult: true } } },
+        }),
       ]);
+
+    const globalResults: Record<string, number> = {};
+    for (const audit of conclusions as any[])
+      if (audit.conclusion?.globalResult)
+        globalResults[audit.conclusion.globalResult] =
+          (globalResults[audit.conclusion.globalResult] ?? 0) + 1;
 
     const byStatusMap: Record<string, number> = {};
     for (const row of byStatus as any[])
@@ -803,6 +813,7 @@ export class AuditsService {
         openIssues,
         syncErrors,
       },
+      globalResults,
       byStatus: byStatusMap,
       recent,
     };

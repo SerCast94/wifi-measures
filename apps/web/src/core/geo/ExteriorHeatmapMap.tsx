@@ -20,6 +20,8 @@ import {
 
 import "leaflet/dist/leaflet.css";
 
+import { heatColor } from "@/core/geo/heatmap-colors";
+
 export interface ExteriorHeatmapPoint {
   lat: number;
   lon: number;
@@ -45,11 +47,6 @@ export interface ExteriorHeatmapMapProps {
 }
 
 const MIN_ALPHA = 0.04;
-
-const colorFor = (t: number, alpha: number): string => {
-  const hue = Math.max(0, Math.min(1, t)) * 120;
-  return `hsla(${hue}, 90%, 50%, ${alpha})`;
-};
 
 interface HeatLayerProps extends LayerProps {
   points: [number, number, number][];
@@ -126,7 +123,7 @@ const Legend = ({
   min: number;
   max: number;
 }) => {
-  const stops = Array.from({ length: 11 }, (_, i) => colorFor(i / 10, 1));
+  const stops = Array.from({ length: 11 }, (_, i) => heatColor(i / 10, 1));
   const gradient = `linear-gradient(to right, ${stops.join(", ")})`;
 
   return (
@@ -275,11 +272,11 @@ export const ExteriorHeatmapMap = ({
               minOpacity: MIN_ALPHA,
               max: 1,
               gradient: {
-                0.2: colorFor(0, 1),
-                0.4: colorFor(0.25, 1),
-                0.6: colorFor(0.5, 1),
-                0.8: colorFor(0.75, 1),
-                1.0: colorFor(1, 1),
+                0.2: heatColor(0, 1),
+                0.4: heatColor(0.25, 1),
+                0.6: heatColor(0.5, 1),
+                0.8: heatColor(0.75, 1),
+                1.0: heatColor(1, 1),
               },
             }}
           />

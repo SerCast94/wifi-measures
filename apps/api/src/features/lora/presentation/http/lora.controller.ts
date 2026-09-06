@@ -188,6 +188,14 @@ export class LoraController {
     return this.evaluationService.getAnalysisData(id);
   }
 
+  // ---------- Estadísticas ----------
+
+  @Get("stats")
+  @HttpCode(200)
+  async stats() {
+    return this.loraService.getStats();
+  }
+
   // ---------- Informe ----------
 
   @Get("audits/:id/informe.pdf")

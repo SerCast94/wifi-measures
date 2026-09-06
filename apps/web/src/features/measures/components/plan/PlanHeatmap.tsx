@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 
+import { heatColor } from "@/core/geo/heatmap-colors";
 import { SurveyHeatmap } from "@/features/surveys/components/SurveyHeatmap";
 import type { MeasureModel } from "@/features/measures/models/measure.model";
 import type {
@@ -78,10 +79,9 @@ export const PlanHeatmap = ({ plan, measures }: PlanHeatmapProps) => {
       for (const point of points) {
         const x = (point.x / 100) * canvas.width;
         const y = (point.y / 100) * canvas.height;
-        const hue = point.intensity * 120;
         const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
-        gradient.addColorStop(0, `hsla(${hue}, 90%, 50%, 0.7)`);
-        gradient.addColorStop(1, `hsla(${hue}, 90%, 50%, 0)`);
+        gradient.addColorStop(0, heatColor(point.intensity, 0.7));
+        gradient.addColorStop(1, heatColor(point.intensity, 0));
         ctx.fillStyle = gradient;
         ctx.beginPath();
         ctx.arc(x, y, radius, 0, Math.PI * 2);

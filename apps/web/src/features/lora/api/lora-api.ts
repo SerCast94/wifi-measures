@@ -6,6 +6,7 @@ import type {
   LoraAudit,
   LoraMeasure,
   LoraNoise,
+  LoraStats,
 } from "../types/lora.types";
 
 const VERSION = "v1";
@@ -159,6 +160,17 @@ export const getLoraAudit = async (id: string): Promise<LoraAudit> => {
   try {
     const { data } = await apiClient.get<{ data: LoraAudit }>(
       `${VERSION}/lora/audits/${id}`
+    );
+    return data.data;
+  } catch (error) {
+    handleApiError(error);
+  }
+};
+
+export const getLoraStats = async (): Promise<LoraStats> => {
+  try {
+    const { data } = await apiClient.get<{ data: LoraStats }>(
+      `${VERSION}/lora/stats`
     );
     return data.data;
   } catch (error) {
