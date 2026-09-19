@@ -1,8 +1,8 @@
 import type {
   CreateLoraMeasureInput,
   CreateLoraNoiseInput,
-  LoraMeasureBlockInput,
   LoraNoiseEntryInput,
+  LoraSampleInput,
 } from "../api/lora-api";
 
 export function parseCsv(text: string): string[][] {
@@ -59,107 +59,135 @@ const toNum = (value: string | undefined | null): number | null => {
   return Number.isNaN(parsed) ? null : parsed;
 };
 
+const toInt = (value: string | undefined | null): number | null => {
+  const num = toNum(value);
+  return num === null || !Number.isInteger(num) ? null : num;
+};
+
+/**
+ * Parsea una coordenada, aceptando tanto decimal ("3.777117", "-3.777117")
+ * como el formato DMS del escáner ("3.777117°W", "38.09219°N", "3.777117 W").
+ */
+const toCoord = (value: string | undefined | null): number | null => {
+  if (value === undefined || value === null) return null;
+  const trimmed = value.trim();
+  if (trimmed === "" || trimmed === "-") return null;
+  const match = trimmed.match(/^([-\d.]+)\s*°?\s*([NSEW])?$/i);
+  if (match) {
+    let num = Number(match[1]);
+    const hemisphere = (match[2] ?? "").toUpperCase();
+    if (hemisphere === "S" || hemisphere === "W") num *= -1;
+    return Number.isNaN(num) ? null : num;
+  }
+  return toNum(trimmed);
+};
+
 const getRowCell = (row: string[], idx: number): string | undefined =>
   idx >= 0 && idx < row.length ? row[idx] : undefined;
 
-interface BlockIndexes {
-  totalPackets: number;
-  successfulPackets: number;
+interface CsvIndex {
+  txCnt: number;
+  time: number;
   rssi: number;
+  rssis: number;
   snr: number;
+  signal: number;
+  uplinkPacket: number;
+  confirmPacket: number;
   packetLossPct: number;
   longitude: number;
   latitude: number;
   location: number;
+  sf: number;
+  txPower: number;
 }
 
-function findBlockIndexes(headers: string[], role: "master" | "slave"): BlockIndexes {
-  const norm = headers.map(normalize);
-  const find = (frag: string): number => {
-    const key = normalize(frag);
-    return norm.findIndex(
-      (k) => k.startsWith(key) && (k.endsWith(role) || k === key)
-    );
-  };
-  return {
-    totalPackets: find("totalpackets"),
-    successfulPackets: find("successfulpackets"),
-    rssi: find("rssi"),
-    snr: find("snr"),
-    packetLossPct: find("packetloss"),
-    longitude: find("longitude"),
-    latitude: find("latitude"),
-    location: find("location"),
-  };
-}
-
-function buildBlock(
-  row: string[],
-  indexes: BlockIndexes,
-  role: "Master" | "Slave"
-): LoraMeasureBlockInput | null {
-  const get = (idx: number) => getRowCell(row, idx);
-  const block: LoraMeasureBlockInput = {
-    role,
-    totalPackets: toNum(get(indexes.totalPackets)),
-    successfulPackets: toNum(get(indexes.successfulPackets)),
-    rssi: toNum(get(indexes.rssi)),
-    snr: toNum(get(indexes.snr)),
-    packetLossPct: toNum(get(indexes.packetLossPct)),
-    longitude: toNum(get(indexes.longitude)),
-    latitude: toNum(get(indexes.latitude)),
-    location: get(indexes.location)?.trim() || null,
-  };
-  const hasData = Object.values(block).some(
-    (v) => v !== null && v !== undefined && v !== ""
-  );
-  return hasData ? block : null;
-}
-
-export function parseLoraMeasuresCsv(text: string): CreateLoraMeasureInput[] {
+/**
+ * El escáner produej en un fichero por sesión. Cada fila es una muestra:
+ * Tx Cnt, Time, RSSI (dBm), RSSIS (dBm), SNR (dB), Signal, UPlink Packet,
+ * Confirm Packet, Packet Loss (%), Longitude, Latitude, Location, SF, TX Power.
+ */
+export function parseLoraMeasuresCsv(
+  text: string,
+  fileName?: string
+): CreateLoraMeasureInput[] {
   const rows = parseCsv(text);
   if (rows.length === 0) return [];
   const headers = rows[0];
   const dataRows = rows.slice(1);
 
   const norm = headers.map(normalize);
-  const findPlain = (frag: string): number => {
-    const key = normalize(frag);
-    return norm.findIndex((k) => k === key || k.startsWith(key));
+  const findN = (frags: string[], pick?: (key: string) => boolean): number => {
+    for (const frag of frags) {
+      const key = normalize(frag);
+      let idx = norm.findIndex((k) => k === key);
+      if (idx === -1) {
+        idx = norm.findIndex((k) => k.startsWith(key) && (!pick || pick(k)));
+      }
+      if (idx !== -1) return idx;
+    }
+    return -1;
   };
 
-  const timeIdx = findPlain("time");
-  const txIdx = findPlain("txpower");
-  const sfIdx = findPlain("sf");
+  const idx: CsvIndex = {
+    txCnt: findN(["txcnt", "tx"]),
+    time: findN(["time"]),
+    rssi: findN(["rssidbm", "rssi"], (k) => !k.startsWith("rssis")),
+    rssis: findN(["rssisdbm", "rssis"], (k) => k.startsWith("rssis")),
+    snr: findN(["snrdb", "snr"], (k) => k.startsWith("snr")),
+    signal: findN(["signal", "senal", "strength"]),
+    uplinkPacket: findN(["uplinkpacket", "uplink", "ulpacket"]),
+    confirmPacket: findN(["confirmpacket", "confirm"]),
+    packetLossPct: findN(["packetloss", "loss"]),
+    longitude: findN(["longitude", "lon", "long"]),
+    latitude: findN(["latitude", "lat"]),
+    location: findN(["location", "ubicacion"]),
+    sf: findN(["sf"]),
+    txPower: findN(["txpower", "power"]),
+  };
 
-  const results: CreateLoraMeasureInput[] = [];
-
+  const samples: LoraSampleInput[] = [];
   for (const dataRow of dataRows) {
-    const blocks: LoraMeasureBlockInput[] = [];
-    for (const role of ["master", "slave"] as const) {
-      const indexes = findBlockIndexes(headers, role);
-      const block = buildBlock(
-        dataRow,
-        indexes,
-        role === "master" ? "Master" : "Slave"
-      );
-      if (block) blocks.push(block);
-    }
-
-    const time =
-      timeIdx >= 0 ? getRowCell(dataRow, timeIdx)?.trim() || null : null;
-    const txPower =
-      txIdx >= 0 ? getRowCell(dataRow, txIdx)?.trim() || null : null;
-    const spreadingFactor =
-      sfIdx >= 0 ? getRowCell(dataRow, sfIdx)?.trim() || null : null;
-    const location = blocks.find((b) => b.location)?.location ?? null;
-
-    if (blocks.length > 0) {
-      results.push({ location, time, txPower, spreadingFactor, blocks });
-    }
+    const get = (i: number) => getRowCell(dataRow, i);
+    const sample: LoraSampleInput = {
+      txCnt: idx.txCnt >= 0 ? toInt(get(idx.txCnt)) : null,
+      time: get(idx.time)?.trim() || null,
+      rssi: idx.rssi >= 0 ? toNum(get(idx.rssi)) : null,
+      rssis: idx.rssis >= 0 ? toNum(get(idx.rssis)) : null,
+      snr: idx.snr >= 0 ? toNum(get(idx.snr)) : null,
+      signal: get(idx.signal)?.trim() || null,
+      uplinkPacket:
+        idx.uplinkPacket >= 0 ? toInt(get(idx.uplinkPacket)) : null,
+      confirmPacket:
+        idx.confirmPacket >= 0 ? toInt(get(idx.confirmPacket)) : null,
+      packetLossPct:
+        idx.packetLossPct >= 0 ? toNum(get(idx.packetLossPct)) : null,
+      longitude: toCoord(get(idx.longitude)),
+      latitude: toCoord(get(idx.latitude)),
+      location: get(idx.location)?.trim() || null,
+      sf: get(idx.sf)?.trim() || null,
+      txPower: get(idx.txPower)?.trim() || null,
+    };
+    const hasData = Object.values(sample).some(
+      (v) => v !== null && v !== undefined && v !== ""
+    );
+    if (hasData) samples.push(sample);
   }
 
-  return results;
+  if (samples.length === 0) return [];
+
+  const first = samples[0];
+  const location = samples.find((s) => s.location)?.location ?? first.location;
+  return [
+    {
+      source: fileName?.trim() || null,
+      location: location ?? null,
+      time: first.time ?? null,
+      spreadingFactor: first.sf ?? null,
+      txPower: first.txPower ?? null,
+      samples,
+    },
+  ];
 }
 
 export function parseLoraNoiseCsv(text: string): CreateLoraNoiseInput[] {
@@ -210,8 +238,10 @@ export function parseLoraNoiseCsv(text: string): CreateLoraNoiseInput[] {
   return [
     {
       location: getRowCell(firstRow, idx.location)?.trim() || null,
-      longitude: idx.longitude >= 0 ? toNum(getRowCell(firstRow, idx.longitude)) : null,
-      latitude: idx.latitude >= 0 ? toNum(getRowCell(firstRow, idx.latitude)) : null,
+      longitude:
+        idx.longitude >= 0 ? toCoord(getRowCell(firstRow, idx.longitude)) : null,
+      latitude:
+        idx.latitude >= 0 ? toCoord(getRowCell(firstRow, idx.latitude)) : null,
       entries,
     },
   ];

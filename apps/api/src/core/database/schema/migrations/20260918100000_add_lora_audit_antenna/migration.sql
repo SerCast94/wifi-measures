@@ -1,0 +1,1 @@
+ALTER TABLE "lora_audits" ADD COLUMN "antenna" JSONB;

@@ -32,6 +32,10 @@ import {
   CreateLoraNoiseDto,
   UpdateLoraAuditDto,
   UpdateLoraAuditStatusDto,
+  UpdateLoraAuditAntennaDto,
+  UpdateLoraAuditResultDto,
+  UpdateMeasureLocationDto,
+  UpdateNoiseLocationDto,
 } from "./lora.dto";
 
 @Controller("lora")
@@ -71,6 +75,20 @@ export class LoraController {
     return this.loraService.deleteMeasure(id);
   }
 
+  @Patch("measures/:id/location")
+  @HttpCode(200)
+  @HasPermissions([MANAGE_MEASURES], "any")
+  async updateMeasureLocation(
+    @Param("id", ParseIntPipe) id: number,
+    @Body() dto: UpdateMeasureLocationDto
+  ) {
+    return this.loraService.updateMeasureLocation(
+      id,
+      dto.latitude,
+      dto.longitude
+    );
+  }
+
   // ---------- Ruido ----------
 
   @Get("noise")
@@ -98,6 +116,20 @@ export class LoraController {
   @HasPermissions([MANAGE_MEASURES], "any")
   async deleteNoise(@Param("id", ParseIntPipe) id: number) {
     return this.loraService.deleteNoise(id);
+  }
+
+  @Patch("noise/:id/location")
+  @HttpCode(200)
+  @HasPermissions([MANAGE_MEASURES], "any")
+  async updateNoiseLocation(
+    @Param("id", ParseIntPipe) id: number,
+    @Body() dto: UpdateNoiseLocationDto
+  ) {
+    return this.loraService.updateNoiseLocation(
+      id,
+      dto.latitude,
+      dto.longitude
+    );
   }
 
   // ---------- Auditorías ----------
@@ -160,6 +192,27 @@ export class LoraController {
     return this.loraService.updateAuditStatus(id, dto.status);
   }
 
+  @Patch("audits/:id/antenna")
+  @HttpCode(200)
+  @HasPermissions([MANAGE_MEASURES], "any")
+  async updateAuditAntenna(
+    @Param("id") id: string,
+    @Body() dto: UpdateLoraAuditAntennaDto
+  ) {
+    return this.loraService.updateAuditAntenna(id, dto.latitude, dto.longitude);
+  }
+
+  /** Establece a mano el resultado de conformidad: CONFORME, CONFORME_CON_ANOTACIONES o NO_CONFORME. */
+  @Patch("audits/:id/result")
+  @HttpCode(200)
+  @HasPermissions([MANAGE_MEASURES], "any")
+  async updateAuditResult(
+    @Param("id") id: string,
+    @Body() dto: UpdateLoraAuditResultDto
+  ) {
+    return this.loraService.updateAuditResult(id, dto.result ?? null);
+  }
+
   @Delete("audits/:id")
   @HttpCode(200)
   @HasPermissions([MANAGE_MEASURES], "any")
@@ -215,13 +268,14 @@ export class LoraController {
         description: audit.description,
         startDate: audit.startDate,
         endDate: audit.endDate,
-        result: analysis?.summary.globalResult ?? null,
+        result: audit.result ?? analysis?.summary.globalResult ?? null,
         hasAnalysis: analysis != null,
       },
       measures: audit.measures ?? [],
       noise: audit.noise ?? [],
       floorPlan: audit.floorPlan ?? null,
       heatmapRadius: audit.heatmapRadius ?? 0.16,
+      antenna: audit.antenna ?? null,
     };
     let pdf: Buffer;
     try {

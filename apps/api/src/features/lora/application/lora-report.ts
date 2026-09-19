@@ -3,13 +3,29 @@
  * generación de PDF (headless Chromium) del módulo de auditorías Wi-Fi.
  */
 
-import { heatmap, renderPdf } from "@features/audits/application/report-pdf";
+import { renderPdf } from "@features/audits/application/report-pdf";
 import {
   analyzeLora,
   summarizeAnalysis,
   type EvalStatus,
   type EvaluatedMetric,
 } from "./lora-analysis-lib";
+import {
+  LORA_LEVEL_COLOR,
+  LORA_LEVEL_LABEL,
+  NOISE_SCALE,
+  RSSI_LEVEL_BUCKETS,
+  SIGNAL_SCALE,
+  SNR_LEVEL_BUCKETS,
+  SNR_SCALE,
+  noiseGradientColor,
+  isNoCoverageSample,
+  rssiLevel,
+  snrLevel,
+  levelOf,
+  type LoraBucket,
+  type LoraQualityLevel,
+} from "./lora-baremo";
 
 const esc = (value: unknown): string =>
   String(value ?? "")
@@ -20,10 +36,7 @@ const esc = (value: unknown): string =>
 const fmtDate = (value: any): string =>
   value ? new Date(value).toLocaleDateString("es-ES") : "—";
 
-const fmtDateRange = (
-  start?: string | null,
-  end?: string | null
-): string => {
+const fmtDateRange = (start?: string | null, end?: string | null): string => {
   const s = fmtDate(start);
   const e = fmtDate(end);
   if (s === "—" && e === "—") return "—";
@@ -41,6 +54,16 @@ const fmtNum = (value: any, digits = 1): string =>
     : Number(value).toLocaleString("es-ES", {
         maximumFractionDigits: digits,
       });
+
+const sampleRoleText = (sample: Record<string, any>, index: number): string => {
+  if (sample.txCnt != null && String(sample.txCnt).trim() !== "") {
+    return `Muestra ${sample.txCnt}`;
+  }
+  if (sample.time && String(sample.time).trim() !== "") {
+    return `Muestra ${String(sample.time)}`;
+  }
+  return `Muestra ${index + 1}`;
+};
 
 function table(headers: string[], rows: Array<Array<string | number>>): string {
   if (rows.length === 0) return '<p class="muted">Sin datos.</p>';
@@ -134,23 +157,9 @@ function countBars(
     .join("")}</div>`;
 }
 
-const RSSI_RANGES: BucketRange[] = [
-  { label: "≤ -95", min: -Infinity, max: -95, color: "#dc2626" },
-  { label: "-95…-85", min: -95, max: -85, color: "#dc2626" },
-  { label: "-85…-75", min: -85, max: -75, color: "#f97316" },
-  { label: "-75…-70", min: -75, max: -70, color: "#d97706" },
-  { label: "-70…-60", min: -70, max: -60, color: "#16a34a" },
-  { label: "> -60", min: -60, max: Infinity, color: "#22c55e" },
-];
+const RSSI_RANGES: BucketRange[] = RSSI_LEVEL_BUCKETS;
 
-const SNR_RANGES: BucketRange[] = [
-  { label: "< 0", min: -Infinity, max: 0, color: "#dc2626" },
-  { label: "0…5", min: 0, max: 5, color: "#d97706" },
-  { label: "5…10", min: 5, max: 10, color: "#f97316" },
-  { label: "10…15", min: 10, max: 15, color: "#16a34a" },
-  { label: "15…20", min: 15, max: 20, color: "#16a34a" },
-  { label: "≥ 20", min: 20, max: Infinity, color: "#22c55e" },
-];
+const SNR_RANGES: BucketRange[] = SNR_LEVEL_BUCKETS;
 
 const MARGIN_RANGES: BucketRange[] = [
   { label: "≤ -10", min: -Infinity, max: -10, color: "#dc2626" },
@@ -169,12 +178,12 @@ const LOSS_RANGES: BucketRange[] = [
 ];
 
 const NOISE_RANGES: BucketRange[] = [
-  { label: "≤ -115", min: -Infinity, max: -115, color: "#6366f1" },
-  { label: "-115…-105", min: -115, max: -105, color: "#6366f1" },
-  { label: "-105…-95", min: -105, max: -95, color: "#6366f1" },
-  { label: "-95…-90", min: -95, max: -90, color: "#6366f1" },
-  { label: "-90…-80", min: -90, max: -80, color: "#6366f1" },
-  { label: "> -80", min: -80, max: Infinity, color: "#6366f1" },
+  { label: "≤ -115", min: -Infinity, max: -115, color: "#dc2626" },
+  { label: "-115…-105", min: -115, max: -105, color: "#ef4444" },
+  { label: "-105…-95", min: -105, max: -95, color: "#f97316" },
+  { label: "-95…-90", min: -95, max: -90, color: "#eab308" },
+  { label: "-90…-80", min: -90, max: -80, color: "#a3e635" },
+  { label: "> -80", min: -80, max: Infinity, color: "#22c55e" },
 ];
 
 // ---------- Mapa de calor sobre el plano georreferenciado ----------
@@ -277,8 +286,7 @@ function projectToImageXY(
     x += dx * 4;
     y -= dy * 4;
   }
-  if (x < -0.00001 || x > 1.00001 || y < -0.00001 || y > 1.00001)
-    return null;
+  if (x < -0.00001 || x > 1.00001 || y < -0.00001 || y > 1.00001) return null;
   return { x: x * 100, y: y * 100 };
 }
 
@@ -286,7 +294,8 @@ function planHeatmapsHtml(
   measures: Array<Record<string, any>>,
   noise: Array<Record<string, any>>,
   floorPlan: any,
-  heatmapRadius?: number | null
+  heatmapRadius?: number | null,
+  antenna?: { lat: number; lon: number } | null
 ): string {
   const image = floorPlan?.image;
   if (!image) return "";
@@ -294,86 +303,249 @@ function planHeatmapsHtml(
   if (!geo)
     return '<section class="break"><h2 id="sec-cobertura">Cobertura sobre el plano</h2><p class="muted">El plano base no está georreferenciado; no se puede dibujar el mapa de calor.</p></section>';
 
-  type Pt = { x: number; y: number; value: number; metric: string };
-  const collect = (
-    sources: Array<Record<string, any>>,
-    metric: string,
-    pick: (item: Record<string, any>) => {
-      lat?: number | null;
-      lon?: number | null;
-      value?: number | null;
-    }
-  ): Pt[] => {
+  const W0 = Math.max(200, Math.round(Number(floorPlan?.width) || 800));
+  const H0 = Math.max(150, Math.round(Number(floorPlan?.height) || 600));
+  const scale = Math.min(1, 900 / W0);
+  const gridW = Math.max(200, Math.round(W0 * scale));
+  const gridH = Math.max(150, Math.round(H0 * scale));
+  const maxR =
+    Math.max(gridW, gridH) *
+    (Number.isFinite(Number(heatmapRadius)) && Number(heatmapRadius) > 0
+      ? Number(heatmapRadius)
+      : 0.16);
+  const cell = Math.max(6, Math.floor(Math.max(gridW, gridH) / 200));
+  const fontPx = Math.max(14, Math.round(Math.max(gridW, gridH) / 90));
+
+  type Pt = {
+    x: number; // 0..100 (proyección)
+    y: number;
+    value: number | null; // null => sin cobertura
+    level: LoraQualityLevel;
+  };
+
+  const measurePoints = (metric: "rssi" | "snr"): Pt[] => {
     const pts: Pt[] = [];
-    for (const item of sources) {
-      const { lat, lon, value } = pick(item);
-      if (lat == null || lon == null || value == null) continue;
-      const nLat = Number(lat);
-      const nLon = Number(lon);
-      const nVal = Number(value);
-      if (!Number.isFinite(nLat) || !Number.isFinite(nLon) || !Number.isFinite(nVal))
-        continue;
-      const xy = projectToImageXY(nLat, nLon, geo);
-      if (!xy) continue;
-      pts.push({ x: xy.x, y: xy.y, value: nVal, metric });
+    for (const m of measures) {
+      for (const s of Array.isArray(m.samples) ? m.samples : []) {
+        if (s.latitude == null || s.longitude == null) continue;
+        const nLat = Number(s.latitude);
+        const nLon = Number(s.longitude);
+        if (!Number.isFinite(nLat) || !Number.isFinite(nLon)) continue;
+        const xy = projectToImageXY(nLat, nLon, geo);
+        if (!xy) continue;
+        const raw = s[metric];
+        const num =
+          raw != null && Number.isFinite(Number(raw)) ? Number(raw) : null;
+        const noCov = isNoCoverageSample({
+          rssi: s.rssi,
+          snr: s.snr,
+          signal: s.signal,
+          packetLossPct: s.packetLossPct,
+        });
+        pts.push({
+          x: xy.x,
+          y: xy.y,
+          value: num,
+          level: noCov
+            ? "SIN_COBERTURA"
+            : num != null
+              ? metric === "rssi"
+                ? rssiLevel(num)
+                : snrLevel(num)
+              : "SIN_COBERTURA",
+        });
+      }
     }
     return pts;
   };
 
-  const blockPoints = (metric: string, valueKey: "rssi" | "snr") =>
-    measures.flatMap((m) =>
-      collect(
-        Array.isArray(m.blocks) ? m.blocks : [],
-        metric,
-        (b) => ({ lat: b.latitude, lon: b.longitude, value: b[valueKey] })
-      )
-    );
-
-  const signalPoints = blockPoints("signal", "rssi");
-  const snrPoints = blockPoints("snr", "snr");
-  const noisePoints = collect(noise, "signal", (n) => {
-    const entries = Array.isArray(n.entries) ? n.entries : [];
-    const vals = entries
-      .map((e: any) => Number(e?.currentScan))
-      .filter((v: number) => Number.isFinite(v));
-    return {
-      lat: n.latitude,
-      lon: n.longitude,
+  const noiseLevelPoints: Pt[] = [];
+  for (const n of noise) {
+    if (n.latitude == null || n.longitude == null) continue;
+    const xy = projectToImageXY(Number(n.latitude), Number(n.longitude), geo);
+    if (!xy) continue;
+    const vals = (Array.isArray(n.entries) ? n.entries : [])
+      .map((e: any) => e?.currentScan)
+      .filter((v: unknown) => v != null && Number.isFinite(Number(v)))
+      .map((v: unknown) => Number(v));
+    noiseLevelPoints.push({
+      x: xy.x,
+      y: xy.y,
       value: vals.length > 0 ? Math.max(...vals) : null,
-    };
-  });
+      level: "ACEPTABLE",
+    });
+  }
 
-  const base = {
-    image,
-    maxRadius:
-      Number.isFinite(Number(heatmapRadius)) && Number(heatmapRadius) > 0
-        ? Number(heatmapRadius)
-        : 0.16,
+  // Marcador de la antena (posición manual del gateway/emisor).
+  const antennaMark = (): string => {
+    if (!antenna) return "";
+    const nLat = Number(antenna.lat);
+    const nLon = Number(antenna.lon);
+    if (!Number.isFinite(nLat) || !Number.isFinite(nLon)) return "";
+    const xy = projectToImageXY(nLat, nLon, geo);
+    if (!xy) return "";
+    const x = (Math.max(0, Math.min(100, xy.x)) / 100) * gridW;
+    const y = (Math.max(0, Math.min(100, xy.y)) / 100) * gridH;
+    const cx = x.toFixed(1);
+    const cy = y.toFixed(1);
+    return `<circle cx="${cx}" cy="${cy}" r="12" fill="none" stroke="#e2e8f0" stroke-width="2" stroke-dasharray="3 3"/><circle cx="${cx}" cy="${cy}" r="11" fill="rgba(255,255,255,0.55)" stroke="none"/><path d="M ${(x - 5).toFixed(1)} ${(y + 12.5).toFixed(1)} L ${cx} ${(y + 8).toFixed(1)} M ${(x + 5).toFixed(1)} ${(y + 12.5).toFixed(1)} L ${cx} ${(y + 8).toFixed(1)}" stroke="#0f172a" stroke-width="2.2" fill="none" stroke-linecap="round"/><rect x="${(x - 1.3).toFixed(1)}" y="${(y + 1.5).toFixed(1)}" width="2.6" height="11" rx="1.3" fill="#0f172a"/><rect x="${(x - 4.2).toFixed(1)}" y="${(y - 8.5).toFixed(1)}" width="8.4" height="12" rx="2" fill="#0f172a"/><circle cx="${cx}" cy="${(y - 2.2).toFixed(1)}" r="1.9" fill="#22c55e"/><path d="M ${(x + 5.2).toFixed(1)} ${(y - 4).toFixed(1)} A 4 4 0 0 1 ${(x + 5.2).toFixed(1)} ${(y + 4).toFixed(1)}" stroke="#334155" stroke-width="1.7" fill="none" stroke-linecap="round"/><path d="M ${(x + 7.4).toFixed(1)} ${(y - 6.5).toFixed(1)} A 6.5 6.5 0 0 1 ${(x + 7.4).toFixed(1)} ${(y + 6.5).toFixed(1)}" stroke="#64748b" stroke-width="1.7" fill="none" stroke-linecap="round"/>`;
   };
+
+  // Render SVG con niveles discretos (baremo LoRa) sobre el plano.
+  const levelGrid = (
+    points: Pt[],
+    colorOf: (pt: Pt) => string,
+    noiseMarks = false
+  ): string => {
+    const valued = points.filter((p) => p.value != null);
+    let rects = "";
+    if (valued.length > 0) {
+      for (let gy = 0; gy < gridH; gy += cell) {
+        for (let gx = 0; gx < gridW; gx += cell) {
+          let md = Infinity;
+          let best: Pt | null = null;
+          for (const p of valued) {
+            const px = (Math.max(0, Math.min(100, p.x)) / 100) * gridW;
+            const py = (Math.max(0, Math.min(100, p.y)) / 100) * gridH;
+            const dx = gx - px;
+            const dy = gy - py;
+            const d = Math.sqrt(dx * dx + dy * dy);
+            if (d < md) {
+              md = d;
+              best = p;
+            }
+          }
+          if (!best || md > maxR) continue;
+          const opacity = Math.max(0.14, Math.min(0.9, 1 - md / maxR));
+          rects += `<rect x="${gx}" y="${gy}" width="${cell}" height="${cell}" fill="${colorOf(best)}" opacity="${opacity.toFixed(2)}"/>`;
+        }
+      }
+    }
+    let marks = "";
+    for (const p of points) {
+      const x = (Math.max(0, Math.min(100, p.x)) / 100) * gridW;
+      const y = (Math.max(0, Math.min(100, p.y)) / 100) * gridH;
+      const cx = x.toFixed(1);
+      const cy = y.toFixed(1);
+      if (p.value == null || p.level === "SIN_COBERTURA") {
+        marks += `<g><circle cx="${cx}" cy="${cy}" r="8" fill="${LORA_LEVEL_COLOR.SIN_COBERTURA}" stroke="#fff" stroke-width="2"/><path d="M ${(x - 4.5).toFixed(1)} ${(y - 4.5).toFixed(1)} L ${(x + 4.5).toFixed(1)} ${(y + 4.5).toFixed(1)} M ${(x + 4.5).toFixed(1)} ${(y - 4.5).toFixed(1)} L ${(x - 4.5).toFixed(1)} ${(y + 4.5).toFixed(1)}" stroke="#fff" stroke-width="2.2"/></g>`;
+      } else {
+        const fill = noiseMarks ? colorOf(p) : "rgba(255,255,255,0.88)";
+        marks += `<g><circle cx="${cx}" cy="${cy}" r="7" fill="${fill}" stroke="#111827" stroke-width="2"/><text x="${(x + 10).toFixed(1)}" y="${cy}" font-size="${fontPx}" font-weight="bold" fill="#111827" dominant-baseline="central" paint-order="stroke" stroke="rgba(255,255,255,0.9)" stroke-width="4">${p.value.toFixed(0)}</text></g>`;
+      }
+    }
+    if (rects === "" && marks === "" && antennaMark() === "") return "";
+    return `<svg class="heat-overlay" viewBox="0 0 ${gridW} ${gridH}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">${rects}${marks}${antennaMark()}</svg>`;
+  };
+
+  // Leyenda segmentada con los niveles del baremo.
+  const legendHtml = (
+    title: string,
+    unit: string,
+    buckets: LoraBucket[],
+    scaleMin: number,
+    scaleMax: number,
+    ticks: number[]
+  ): string => {
+    const span = (v: number) =>
+      Math.max(
+        0,
+        Math.min(100, ((v - scaleMin) / (scaleMax - scaleMin)) * 100)
+      );
+    const segs = buckets
+      .map((b) => {
+        const lo = span(b.min === -Infinity ? scaleMin : b.min);
+        const hi = span(b.max === Infinity ? scaleMax : b.max);
+        if (hi <= lo) return "";
+        return `<span style="left:${lo.toFixed(1)}%;width:${(hi - lo).toFixed(1)}%;background:${b.color}"></span>`;
+      })
+      .join("");
+    const ticksHtml = ticks
+      .map(
+        (t) =>
+          `<span class="hl-tick" style="left:${span(t).toFixed(1)}%">${t}</span>`
+      )
+      .join("");
+    return `<div class="heat-legend">
+      <p class="hl-title">${esc(title)} (${esc(unit)}) · baremo despliegue LoRa</p>
+      <div class="hl-bar-wrap">
+        <span class="hl-edge">${scaleMin}</span>
+        <div class="hl-bar"><div class="hl-grad heat-seg">${segs}</div>${ticksHtml}</div>
+        <span class="hl-edge">${scaleMax}</span>
+      </div>
+      <div class="hl-labels">
+        ${buckets
+          .map(
+            (b) =>
+              `<span class="hl-lbl"><i style="background:${b.color}"></i>${esc(LORA_LEVEL_LABEL[b.level])}</span>`
+          )
+          .join("")}
+        <span class="hl-lbl"><i style="background:#991b1b"></i>Sin cobertura</span>
+      </div>
+    </div>`;
+  };
+
+  // Leyenda continua para el ruido (escala fija verde→amarillo→rojo).
+  const noiseLegendHtml = (title: string): string => {
+    const span = (v: number) =>
+      ((v - NOISE_SCALE.min) / (NOISE_SCALE.max - NOISE_SCALE.min)) * 100;
+    return `<div class="heat-legend">
+      <p class="hl-title">${esc(title)} (dBm) · escala fija</p>
+      <div class="hl-bar-wrap">
+        <span class="hl-edge">${NOISE_SCALE.min}</span>
+        <div class="hl-bar"><div class="hl-grad" style="background:linear-gradient(90deg, #dc2626 0%, #eab308 ${span(-100).toFixed(1)}%, #22c55e 100%)"></div><span class="hl-tick" style="left:${span(-100).toFixed(1)}%">−100</span></div>
+        <span class="hl-edge">${NOISE_SCALE.max}</span>
+      </div>
+      <p class="muted" style="margin:12px 0 0">Ruido de fondo (dBm). Rojo = más ruido, verde = menos ruido.</p>
+    </div>`;
+  };
+
   const maps: string[] = [];
+  const signalPoints = measurePoints("rssi");
   if (signalPoints.length > 0) {
-    maps.push(`<h3>Mapa de nivel de señal (RSSI, dBm)</h3>${heatmap(
-      { ...base, points: signalPoints, metricLabel: "Nivel de señal RSSI", unit: "dBm" },
-      "signal"
-    )}`);
+    maps.push(`<h3>Mapa de nivel de señal (RSSI, dBm)</h3>
+      <div class="heat-box" style="padding-bottom:${((gridH / gridW) * 100).toFixed(2)}%">
+        <img src="${esc(image)}" alt="Plano"/>
+        ${levelGrid(signalPoints, (pt) => LORA_LEVEL_COLOR[pt.level])}
+      </div>
+      ${legendHtml("Nivel de señal RSSI", "dBm", RSSI_LEVEL_BUCKETS, SIGNAL_SCALE.min, SIGNAL_SCALE.max, [-115, -100, -85, -70])}
+      <p class="muted">Puntos en rojo marcados con aspa: muestras sin señal (Abnormal) o pérdida 100&nbsp;%.</p>`);
   }
+  const snrPoints = measurePoints("snr");
   if (snrPoints.length > 0) {
-    maps.push(`<h3>Mapa de SNR (dB)</h3>${heatmap(
-      { ...base, points: snrPoints, metricLabel: "SNR", unit: "dB" },
-      "snr"
-    )}`);
+    maps.push(`<h3>Mapa de SNR (dB)</h3>
+      <div class="heat-box" style="padding-bottom:${((gridH / gridW) * 100).toFixed(2)}%">
+        <img src="${esc(image)}" alt="Plano"/>
+        ${levelGrid(snrPoints, (pt) => LORA_LEVEL_COLOR[pt.level])}
+      </div>
+      ${legendHtml("Relación señal-ruido", "dB", SNR_LEVEL_BUCKETS, SNR_SCALE.min, SNR_SCALE.max, [-5, 0, 5, 10])}
+      <p class="muted">Puntos en rojo marcados con aspa: muestras sin señal (Abnormal) o pérdida 100&nbsp;%.</p>`);
   }
+  const noisePoints = noiseLevelPoints.filter((p) => p.value != null);
   if (noisePoints.length > 0) {
-    maps.push(`<h3>Mapa de ruido (dBm)</h3>${heatmap(
-      { ...base, points: noisePoints, metricLabel: "Nivel de ruido", unit: "dBm" },
-      "signal"
-    )}`);
+    maps.push(`<h3>Mapa de ruido (dBm)</h3>
+      <div class="heat-box" style="padding-bottom:${((gridH / gridW) * 100).toFixed(2)}%">
+        <img src="${esc(image)}" alt="Plano"/>
+        ${levelGrid(noisePoints, (pt) => noiseGradientColor(pt.value!), true)}
+      </div>
+      ${noiseLegendHtml("Nivel de ruido")}`);
   }
-  if (maps.length === 0) return "";
+  if (maps.length === 0 && antennaMark() === "") return "";
+  if (maps.length === 0) {
+    maps.push(`<h3>Posición de la antena</h3>
+      <div class="heat-box" style="padding-bottom:${((gridH / gridW) * 100).toFixed(2)}%">
+        <img src="${esc(image)}" alt="Plano"/>
+        ${levelGrid([], () => LORA_LEVEL_COLOR.EXCELENTE)}
+      </div>`);
+  }
+
+  const antennaNote = antenna
+    ? '<p class="muted">El marcador de antena (mástil con panel sectorial y ondas) indica la posición del gateway/emisor.</p>'
+    : "";
 
   return `<section class="break"><h2 id="sec-cobertura">Cobertura sobre el plano</h2>
     <p class="muted">Plano base: ${esc(floorPlan.name ?? "—")}</p>
-    ${maps.join("")}</section>`;
+    ${maps.join("")}${antennaNote}</section>`;
 }
 
 // ---------- Sección de análisis ----------
@@ -393,8 +565,7 @@ function coherenceHtml(coherence: Array<Record<string, any>>): string {
     return idx === -1 ? 50 : idx;
   };
   const keys = [...byCase.keys()].sort((a, b) => rank(a) - rank(b));
-  if (keys.length === 0)
-    return '<p class="muted">Sin coherencia evaluada.</p>';
+  if (keys.length === 0) return '<p class="muted">Sin coherencia evaluada.</p>';
   return keys
     .map((key) => {
       const items = byCase.get(key)!;
@@ -413,9 +584,9 @@ function coherenceHtml(coherence: Array<Record<string, any>>): string {
           </tr>`;
         })
         .join("");
-      return `<h4>${caseLabel} — ${title} <span class="muted" style="font-weight:normal;font-size:10px">(${items.length} bloque${items.length === 1 ? "" : "s"})</span></h4>
+      return `<h4>${caseLabel} — ${title} <span class="muted" style="font-weight:normal;font-size:10px">(${items.length} muestra${items.length === 1 ? "" : "s"})</span></h4>
         <table>
-          <thead><tr><th>Bloque</th><th>Estado</th><th>Observación</th><th>Recomendación</th></tr></thead>
+          <thead><tr><th>Muestra</th><th>Estado</th><th>Observación</th><th>Recomendación</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>`;
     })
@@ -426,7 +597,8 @@ function analysisHtml(
   blocks: Array<Record<string, any>>,
   noiseEntries: Array<Record<string, any>>,
   measures: Array<Record<string, any>>,
-  noiseRecords: Array<Record<string, any>>
+  noiseRecords: Array<Record<string, any>>,
+  manualResult?: string | null
 ): string {
   const { evaluations, coherence } = analyzeLora(blocks, noiseEntries);
   const summary = summarizeAnalysis(evaluations);
@@ -442,7 +614,7 @@ function analysisHtml(
     );
     charts.push(`<h3>Distribución RSSI (dBm)</h3>
       ${vbars(counts, { min: 0, max: Math.max(...counts.map((c) => c.value), 1) })}
-      <p class="muted">${blocks.length} bloques · agregados por umbral. Verde ≥ −70 dBm · ámbar −85…−70 · rojo &lt; −85.</p>`);
+      <p class="muted">${blocks.length} muestras · baremo LoRa: &gt; −70 excelente · −85 buena · −100 aceptable · −115 débil · &lt; −115 crítica.</p>`);
   }
 
   // SNR por bloque
@@ -453,7 +625,7 @@ function analysisHtml(
     );
     charts.push(`<h3>Distribución SNR (dB)</h3>
       ${vbars(counts, { min: 0, max: Math.max(...counts.map((c) => c.value), 1) })}
-      <p class="muted">${blocks.length} bloques · agregados por umbral. Verde ≥ 10 dB · ámbar −5…10 · rojo &lt; −5.</p>`);
+      <p class="muted">${blocks.length} muestras · baremo LoRa: ≥ 10 excelente · 5 buena · 0 aceptable · −5 débil · &lt; −5 crítica.</p>`);
   }
 
   // Margen radio por bloque
@@ -462,7 +634,7 @@ function analysisHtml(
       ${summarizeMarginChart(blocks, noiseEntries)}`);
   }
 
-  // Pérdida de paquetes por bloque
+  // Pérdida de paquetes por muestreo
   if (blocks.length > 0) {
     const counts = aggregate(
       blocks.map((b) => b.packetLossPct),
@@ -470,7 +642,7 @@ function analysisHtml(
     );
     charts.push(`<h3>Distribución de pérdida de paquetes</h3>
       ${countBars(counts)}
-      <p class="muted">${blocks.length} bloques · verde ≤ 5% · ámbar 5–20% · rojo &gt; 20%.</p>`);
+      <p class="muted">${blocks.length} muestras · verde ≤ 5% · ámbar 5–20% · rojo &gt; 20%.</p>`);
   }
 
   // Ruido por frecuencia
@@ -493,6 +665,11 @@ function analysisHtml(
     </div>
 
     <h3 id="sec-analisis-global">Resultado global: ${esc(globalLabel(summary.globalResult))}</h3>
+    ${
+      manualResult
+        ? `<p class="muted">Ajustado a mano por el auditor: <b>${esc(globalLabel(manualResult))}</b></p>`
+        : ""
+    }
     ${summary.paragraphs.map((p) => `<p>${esc(p)}</p>`).join("")}
 
     <h3 id="sec-analisis-categorias">Resumen por categoría</h3>
@@ -502,7 +679,7 @@ function analysisHtml(
     ${elementDetailHtml(evaluations, measures, noiseRecords)}
 
     <h3 id="sec-analisis-coherencia">Coherencia cruzada</h3>
-    <p class="muted">Confronta las métricas de cada bloque (RSSI, SNR, pérdidas y margen) para detectar contradicciones entre la señal y la entrega de paquetes.</p>
+    <p class="muted">Confronta las métricas de cada muestra (RSSI, SNR, pérdidas y margen) para detectar contradicciones entre la señal y la entrega de paquetes.</p>
     ${coherenceHtml(coherence)}
 
     <h3 id="sec-analisis-recomendaciones">Recomendaciones</h3>
@@ -537,7 +714,7 @@ function summarizeMarginChart(
   );
   return `
     ${vbars(counts, { min: 0, max: Math.max(...counts.map((c) => c.value), 1) })}
-    <p class="muted">${blocks.length} bloques · margen = RSSI − piso de ruido (${fmtNum(noiseFloor, 1)} dBm). Verde ≥ 10 dB · ámbar 0…10 · rojo &lt; 0.</p>`;
+    <p class="muted">${blocks.length} muestras · margen = RSSI − piso de ruido (${fmtNum(noiseFloor, 1)} dBm). Verde ≥ 10 dB · ámbar 0…10 · rojo &lt; 0.</p>`;
 }
 
 const globalLabel = (result: string): string =>
@@ -546,6 +723,8 @@ const globalLabel = (result: string): string =>
     APROBADO_CON_OBSERVACIONES: "Aprobado con observaciones",
     NO_CONFORME: "No conforme",
     SIN_DATOS_SUFICIENTES: "Sin datos suficientes",
+    CONFORME: "Conforme",
+    CONFORME_CON_ANOTACIONES: "Conforme con anotaciones",
   })[result] ?? result;
 
 const metricLabel = (metric: string): string =>
@@ -638,13 +817,17 @@ function elementDetailHtml(
     ]
       .filter(Boolean)
       .join(" · ");
-    parts.push(`<h4>${sourceLabel}${m.location ? ` · ${esc(String(m.location))}` : ""}</h4>${meta ? `<p class="muted">${meta}</p>` : ""}${evalDetailTable(evals)}`);
+    parts.push(
+      `<h4>${sourceLabel}${m.location ? ` · ${esc(String(m.location))}` : ""}</h4>${meta ? `<p class="muted">${meta}</p>` : ""}${evalDetailTable(evals)}`
+    );
   });
   noiseRecords.forEach((n, index) => {
     const sourceLabel = `Ruido ${index + 1}`;
     const evals = bySource(sourceLabel);
     if (evals.length === 0) return;
-    parts.push(`<h4>${sourceLabel}${n.location ? ` · ${esc(String(n.location))}` : ""}</h4>${evalDetailTable(evals)}`);
+    parts.push(
+      `<h4>${sourceLabel}${n.location ? ` · ${esc(String(n.location))}` : ""}</h4>${evalDetailTable(evals)}`
+    );
   });
   if (parts.length === 0) return '<p class="muted">Sin evaluaciones.</p>';
   return parts.join("");
@@ -674,38 +857,67 @@ export interface LoraReportData {
     geoCalibration?: Record<string, unknown> | null;
   } | null;
   heatmapRadius?: number | null;
+  antenna?: { lat: number; lon: number } | null;
 }
 
 export function renderLoraReportHtml(data: LoraReportData): string {
   const header = data.header ?? {};
   const showCoverageSection = Boolean(data.floorPlan?.image);
 
+  const qualityCell = (s: Record<string, any>): string => {
+    const lv = levelOf({
+      rssi:
+        s.rssi == null || Number.isNaN(Number(s.rssi)) ? null : Number(s.rssi),
+      snr: s.snr == null || Number.isNaN(Number(s.snr)) ? null : Number(s.snr),
+      signal: s.signal ?? null,
+      sf: s.sf ?? null,
+      packetLossPct:
+        s.packetLossPct == null || Number.isNaN(Number(s.packetLossPct))
+          ? null
+          : Number(s.packetLossPct),
+    });
+    const color = LORA_LEVEL_COLOR[lv];
+    return `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;background:${color};color:#fff;font-size:9px;font-weight:600;line-height:1.45;white-space:nowrap;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.25)"><span style="width:5px;height:5px;border-radius:99px;background:#fff;display:inline-block"></span>${esc(LORA_LEVEL_LABEL[lv])}</span>`;
+  };
+
   const measureHtml = (measure: Record<string, any>) => {
     if (!measure) return '<p class="muted">Sin datos.</p>';
-    const blocks = Array.isArray(measure.blocks) ? measure.blocks : [];
-    if (blocks.length === 0) return '<p class="muted">Sin datos.</p>';
+    const samples = Array.isArray(measure.samples) ? measure.samples : [];
+    if (samples.length === 0) return '<p class="muted">Sin datos.</p>';
     return table(
       [
-        "Rol",
-        "Total paq.",
-        "Paq. correctos",
+        "Nº",
+        "Hora",
         "RSSI (dBm)",
+        "RSSIS (dBm)",
         "SNR (dB)",
+        "Señal",
+        "Calidad",
+        "UL pkt.",
+        "Confirm.",
         "Pérdida (%)",
         "Longitud",
         "Latitud",
         "Ubicación",
+        "SF",
+        "TX",
       ],
-      blocks.map((b) => [
-        b.role ?? "—",
-        fmtNum(b.totalPackets, 0),
-        fmtNum(b.successfulPackets, 0),
-        fmtNum(b.rssi),
-        fmtNum(b.snr),
-        fmtNum(b.packetLossPct),
-        fmtNum(b.longitude, 6),
-        fmtNum(b.latitude, 6),
-        b.location ?? "—",
+      samples.map((s) => [
+        s.txCnt ?? "—",
+        s.time ?? "—",
+        fmtNum(s.rssi),
+        fmtNum(s.rssis),
+        fmtNum(s.snr),
+        s.signal ?? "—",
+        qualityCell(s),
+        fmtNum(s.uplinkPacket, 0),
+        fmtNum(s.confirmPacket, 0),
+        fmtNum(s.packetLossPct),
+        fmtNum(s.longitude, 6),
+        fmtNum(s.latitude, 6),
+        s.location ?? "—",
+        s.sf ?? "—",
+        s.txPower ?? "—",
       ])
     );
   };
@@ -713,7 +925,13 @@ export function renderLoraReportHtml(data: LoraReportData): string {
   const measuresHtml =
     (data.measures ?? [])
       .map((measure) => {
+        const samplesCount = Array.isArray(measure.samples)
+          ? measure.samples.length
+          : 0;
         const general = [
+          measure.source
+            ? `<div><b>Origen:</b> ${esc(measure.source)}</div>`
+            : "",
           measure.time
             ? `<div><b>Fecha/hora:</b> ${esc(measure.time)}</div>`
             : "",
@@ -729,7 +947,7 @@ export function renderLoraReportHtml(data: LoraReportData): string {
         ]
           .filter(Boolean)
           .join("");
-        return `<div class="card">${general || ""}${measureHtml(measure)}</div>`;
+        return `<div class="card">${general}${samplesCount > 0 ? `<p class="muted" style="margin:4px 0 0">${samplesCount} ${samplesCount === 1 ? "muestra" : "muestras"}</p>` : ""}${measureHtml(measure)}</div>`;
       })
       .join("") || '<p class="muted">Sin datos.</p>';
 
@@ -815,6 +1033,9 @@ export function renderLoraReportHtml(data: LoraReportData): string {
   .hl-bar-wrap { display:flex; align-items:center; gap:6px; }
   .hl-bar { position:relative; flex:1; height:16px; border-radius:3px; overflow:visible; }
   .hl-grad { width:100%; height:100%; border-radius:3px; border:1px solid rgba(0,0,0,.1); }
+  .heat-seg { position:relative; }
+  .heat-seg > span { position:absolute; top:0; height:100%; display:block; }
+  .heat-seg > span + span { border-left:1px solid rgba(0,0,0,.08); }
   .hl-edge { font-size:9px; font-weight:600; color:#374151; white-space:nowrap; }
   .hl-tick { position:absolute; top:100%; transform:translateX(-50%); font-size:8px; color:#6b7280; margin-top:2px; white-space:nowrap; }
   .hl-tick::before { content:""; position:absolute; bottom:100%; left:50%; width:1px; height:4px; background:#9ca3af; margin-bottom:1px; }
@@ -844,7 +1065,7 @@ export function renderLoraReportHtml(data: LoraReportData): string {
     </div>
     ${
       header.result
-        ? `<div class="result">Resultado: ${esc(header.result.replace(/_/g, " "))}</div>`
+        ? `<div class="result">Resultado: ${esc(globalLabel(header.result))}</div>`
         : ""
     }
     <p style="margin-top:60px;font-size:10px;color:#6b7280">Generado el ${new Date().toLocaleString("es-ES")}</p>
@@ -889,6 +1110,7 @@ export function renderLoraReportHtml(data: LoraReportData): string {
     }</dd>
     <dt>Fecha inicio</dt><dd>${fmtDate(header.startDate)}</dd>
     <dt>Fecha fin</dt><dd>${fmtDate(header.endDate)}</dd>
+    <dt>Resultado</dt><dd>${header.result ? esc(globalLabel(header.result)) : "—"}</dd>
     <dt>Objetivo</dt><dd>${esc(header.objective) || "—"}</dd>
   </dl>
   ${
@@ -901,12 +1123,23 @@ export function renderLoraReportHtml(data: LoraReportData): string {
 
   <section class="break"><h2 id="sec-ruido">Ruido (${(data.noise ?? []).length})</h2>${noiseHtml}</section>
 
-  ${planHeatmapsHtml(data.measures ?? [], data.noise ?? [], data.floorPlan, data.heatmapRadius)}
+  ${planHeatmapsHtml(data.measures ?? [], data.noise ?? [], data.floorPlan, data.heatmapRadius, data.antenna)}
 
   ${(() => {
     const blocks = (data.measures ?? []).flatMap((m, index) =>
-      (Array.isArray(m.blocks) ? m.blocks : []).map((b) => ({
-        ...b,
+      (Array.isArray(m.samples) ? m.samples : []).map((s, sampleIndex) => ({
+        role: sampleRoleText(s, sampleIndex),
+        totalPackets: s.uplinkPacket == null ? null : Number(s.uplinkPacket),
+        successfulPackets:
+          s.confirmPacket == null ? null : Number(s.confirmPacket),
+        rssi: s.rssi ?? null,
+        rssis: s.rssis ?? null,
+        snr: s.snr ?? null,
+        packetLossPct: s.packetLossPct ?? null,
+        txPower: s.txPower ?? null,
+        longitude: s.longitude ?? null,
+        latitude: s.latitude ?? null,
+        location: s.location ?? null,
         sourceLabel: `Medida ${index + 1}`,
       }))
     );
@@ -916,14 +1149,18 @@ export function renderLoraReportHtml(data: LoraReportData): string {
         sourceLabel: `Ruido ${index + 1}`,
       }))
     );
-    return analysisHtml(blocks, noiseEntries, data.measures ?? [], data.noise ?? []);
+    return analysisHtml(
+      blocks,
+      noiseEntries,
+      data.measures ?? [],
+      data.noise ?? [],
+      data.header?.result ?? null
+    );
   })()}
 </body></html>`;
 }
 
-export async function renderLoraPdf(
-  data: LoraReportData
-): Promise<Buffer> {
+export async function renderLoraPdf(data: LoraReportData): Promise<Buffer> {
   return renderPdf(renderLoraReportHtml(data), {
     footerLabel: "Informe de auditoría LoRa",
   });

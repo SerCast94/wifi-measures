@@ -23,8 +23,12 @@ import {
   getLoraNoise,
   getLoraStats,
   runLoraAnalysis,
+  updateAuditAntenna,
+  updateAuditResult,
   updateLoraAuditStatus,
   updateLoraAudit,
+  updateMeasureLocation,
+  updateNoiseLocation,
   type CreateLoraAuditInput,
   type CreateLoraMeasureInput,
   type CreateLoraNoiseInput,
@@ -33,6 +37,7 @@ import type {
   LoraAnalysis,
   LoraAnalysisData,
   LoraAudit,
+  LoraAuditResult,
   LoraMeasure,
   LoraNoise,
   LoraStats,
@@ -62,6 +67,17 @@ export const useDeleteLoraMeasure = () => {
     mutationFn: deleteLoraMeasure,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: loraKeys("measures") });
+    },
+  });
+};
+
+export const useUpdateMeasureLocation = () => {
+  const queryClient = useQueryClient();
+  return useMutation<LoraMeasure, AppError, { id: number; lat: number; lon: number }>({
+    mutationFn: ({ id, lat, lon }) => updateMeasureLocation(id, lat, lon),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: loraKeys("measures") });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.lora] });
     },
   });
 };
@@ -98,6 +114,17 @@ export const useDeleteLoraNoise = () => {
     mutationFn: deleteLoraNoise,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: loraKeys("noise") });
+    },
+  });
+};
+
+export const useUpdateNoiseLocation = () => {
+  const queryClient = useQueryClient();
+  return useMutation<LoraNoise, AppError, { id: number; lat: number; lon: number }>({
+    mutationFn: ({ id, lat, lon }) => updateNoiseLocation(id, lat, lon),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: loraKeys("noise") });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.lora] });
     },
   });
 };
@@ -153,6 +180,17 @@ export const useUpdateLoraAuditStatus = (id: string) => {
   });
 };
 
+export const useUpdateAuditResult = (id: string) => {
+  const queryClient = useQueryClient();
+  return useMutation<LoraAudit, AppError, LoraAuditResult | null>({
+    mutationFn: (result) => updateAuditResult(id, result),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: loraKeys(`audit:${id}`) });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.lora] });
+    },
+  });
+};
+
 export const useUpdateLoraAudit = () => {
   const queryClient = useQueryClient();
   return useMutation<LoraAudit, AppError, { id: string; input: Partial<CreateLoraAuditInput> }>({
@@ -185,6 +223,21 @@ export const useDeleteLoraAudit = () => {
   return useMutation<void, AppError, string>({
     mutationFn: deleteLoraAudit,
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.lora] });
+    },
+  });
+};
+
+export const useUpdateAuditAntenna = () => {
+  const queryClient = useQueryClient();
+  return useMutation<
+    LoraAudit,
+    AppError,
+    { id: string; lat: number; lon: number }
+  >({
+    mutationFn: ({ id, lat, lon }) => updateAuditAntenna(id, lat, lon),
+    onSuccess: (audit) => {
+      queryClient.setQueryData(loraKeys(`audit:${audit.id}`), audit);
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.lora] });
     },
   });

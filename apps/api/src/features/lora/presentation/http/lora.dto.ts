@@ -9,26 +9,35 @@ import {
   MaxLength,
 } from "class-validator";
 
-import { LORA_AUDIT_STATUSES } from "@features/lora/domain/entities/lora.types";
+import {
+  LORA_AUDIT_RESULTS,
+  LORA_AUDIT_STATUSES,
+} from "@features/lora/domain/entities/lora.types";
 
-export class LoraMeasureBlockDto {
-  @IsOptional() @IsString() @MaxLength(20) role?: string | null;
-  @IsOptional() @IsNumber() totalPackets?: number | null;
-  @IsOptional() @IsNumber() successfulPackets?: number | null;
+export class LoraSampleDto {
+  @IsOptional() @IsInt() txCnt?: number | null;
+  @IsOptional() @IsString() @MaxLength(60) time?: string | null;
   @IsOptional() @IsNumber() rssi?: number | null;
+  @IsOptional() @IsNumber() rssis?: number | null;
   @IsOptional() @IsNumber() snr?: number | null;
+  @IsOptional() @IsString() @MaxLength(40) signal?: string | null;
+  @IsOptional() @IsInt() uplinkPacket?: number | null;
+  @IsOptional() @IsInt() confirmPacket?: number | null;
   @IsOptional() @IsNumber() packetLossPct?: number | null;
   @IsOptional() @IsNumber() longitude?: number | null;
   @IsOptional() @IsNumber() latitude?: number | null;
   @IsOptional() @IsString() @MaxLength(200) location?: string | null;
+  @IsOptional() @IsString() @MaxLength(60) sf?: string | null;
+  @IsOptional() @IsString() @MaxLength(60) txPower?: string | null;
 }
 
 export class LoraMeasureRowDto {
+  @IsOptional() @IsString() @MaxLength(300) source?: string | null;
   @IsOptional() @IsString() @MaxLength(200) location?: string | null;
   @IsOptional() @IsString() @MaxLength(60) time?: string | null;
   @IsOptional() @IsString() @MaxLength(60) spreadingFactor?: string | null;
   @IsOptional() @IsString() @MaxLength(60) txPower?: string | null;
-  @IsOptional() @IsArray() blocks?: LoraMeasureBlockDto[];
+  @IsOptional() @IsArray() samples?: LoraSampleDto[];
 }
 
 export class CreateLoraMeasuresDto {
@@ -75,6 +84,10 @@ export class CreateLoraAuditDto {
   @IsOptional() @IsArray() @IsInt({ each: true }) noiseIds?: number[];
   @IsOptional() @IsInt() floorPlanId?: number | null;
   @IsOptional() @IsNumber() heatmapRadius?: number | null;
+  @IsOptional()
+  @IsString()
+  @IsIn([...LORA_AUDIT_RESULTS, ""] as unknown as string[])
+  result?: string | null;
 }
 
 export class UpdateLoraAuditDto {
@@ -95,9 +108,35 @@ export class UpdateLoraAuditDto {
   @IsOptional() @IsArray() @IsInt({ each: true }) noiseIds?: number[];
   @IsOptional() @IsInt() floorPlanId?: number | null;
   @IsOptional() @IsNumber() heatmapRadius?: number | null;
+  @IsOptional()
+  @IsString()
+  @IsIn([...LORA_AUDIT_RESULTS, ""] as unknown as string[])
+  result?: string | null;
+}
+
+export class UpdateLoraAuditResultDto {
+  @IsOptional()
+  @IsString()
+  @IsIn([...LORA_AUDIT_RESULTS, ""] as unknown as string[])
+  result?: string | null;
 }
 
 export class UpdateLoraAuditStatusDto {
   @IsIn(LORA_AUDIT_STATUSES as unknown as string[])
   status!: string;
+}
+
+export class UpdateMeasureLocationDto {
+  @IsNumber() latitude!: number;
+  @IsNumber() longitude!: number;
+}
+
+export class UpdateNoiseLocationDto {
+  @IsNumber() latitude!: number;
+  @IsNumber() longitude!: number;
+}
+
+export class UpdateLoraAuditAntennaDto {
+  @IsNumber() latitude!: number;
+  @IsNumber() longitude!: number;
 }

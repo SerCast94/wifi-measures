@@ -9,6 +9,7 @@ import { useExteriorHeatmap } from "@/features/exterior-heatmaps/hooks/use-exter
 import { useFloorPlans } from "@/features/floorplans/hooks/use-floorplans";
 import { useLoraAudit } from "@/features/lora/hooks/use-lora";
 import { LoraPlanHeatmap } from "@/features/lora/components/LoraPlanHeatmap";
+import { SIGNAL_SCALE } from "@/features/lora/lib/lora-baremo";
 
 const formatDate = (value: string): string => {
   const date = new Date(value);
@@ -140,6 +141,8 @@ export const ExteriorHeatmapDetail = ({
           unit="dBm"
           heightClassName="h-[560px]"
           floorPlan={floorPlanOverlay}
+          scaleMin={SIGNAL_SCALE.min}
+          scaleMax={SIGNAL_SCALE.max}
         />
       )}
     </div>

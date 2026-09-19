@@ -29,7 +29,7 @@ export class LoraEvaluationService {
     return this.database.getClient();
   }
 
-  private parseBlocks(value: unknown): Array<Record<string, any>> {
+  private parseSamples(value: unknown): Array<Record<string, any>> {
     if (!Array.isArray(value)) return [];
     return value.filter((item): item is Record<string, any> =>
       Boolean(item && typeof item === "object")
@@ -43,6 +43,52 @@ export class LoraEvaluationService {
     );
   }
 
+  private sampleRole(sample: Record<string, any>, index: number): string {
+    if (sample.txCnt != null && String(sample.txCnt).trim() !== "") {
+      return `Muestra ${sample.txCnt}`;
+    }
+    if (sample.time && String(sample.time).trim() !== "") {
+      return `Muestra ${String(sample.time)}`;
+    }
+    return `Muestra ${index + 1}`;
+  }
+
+  private toAnalysisBlock(
+    sample: Record<string, any>,
+    sampleIndex: number,
+    measureLabel: string
+  ): Record<string, any> {
+    return {
+      role: this.sampleRole(sample, sampleIndex),
+      totalPackets:
+        sample.uplinkPacket === null || sample.uplinkPacket === undefined
+          ? null
+          : Number(sample.uplinkPacket),
+      successfulPackets:
+        sample.confirmPacket === null || sample.confirmPacket === undefined
+          ? null
+          : Number(sample.confirmPacket),
+      rssi: sample.rssi ?? null,
+      rssis: sample.rssis ?? null,
+      snr: sample.snr ?? null,
+      packetLossPct: sample.packetLossPct ?? null,
+      txPower: sample.txPower ?? null,
+      longitude: sample.longitude ?? null,
+      latitude: sample.latitude ?? null,
+      location: sample.location ?? null,
+      sourceLabel: measureLabel,
+    };
+  }
+
+  private flattenMeasureSamples(measures: Array<Record<string, any>>) {
+    return measures.flatMap((m, index) => {
+      const measureLabel = `Medida ${index + 1}`;
+      return this.parseSamples(m.samples).map((sample, sampleIndex) =>
+        this.toAnalysisBlock(sample, sampleIndex, measureLabel)
+      );
+    });
+  }
+
   /**
    * Ejecuta el análisis sobre la medida y el ruido vinculados a la auditoría
    * y persiste los resultados, sustituyendo el lote anterior.
@@ -51,13 +97,9 @@ export class LoraEvaluationService {
     const client = this.client;
     if (!client) throw new Error("Base de datos no disponible");
 
-const audit = await this.loraService.getAuditByIdOrThrow(auditId);
-    const blocks = (audit.measures ?? []).flatMap(
-      (m: { blocks?: unknown }, index: number) =>
-        this.parseBlocks(m.blocks).map((b) => ({
-          ...b,
-          sourceLabel: `Medida ${index + 1}`,
-        }))
+    const audit = await this.loraService.getAuditByIdOrThrow(auditId);
+    const blocks = this.flattenMeasureSamples(
+      (audit.measures ?? []) as Array<Record<string, any>>
     );
     const noiseEntries = (audit.noise ?? []).flatMap(
       (n: { entries?: unknown }, index: number) =>
@@ -80,7 +122,7 @@ const audit = await this.loraService.getAuditByIdOrThrow(auditId);
           category: e.category,
           metric: e.metric,
           blockRole:
-            [e.sourceLabel, e.elementRole].filter(Boolean).join(" � ") || null,
+            [e.sourceLabel, e.elementRole].filter(Boolean).join(" � ") || null,
           value: e.value,
           unit: e.unit,
           status: e.status,
@@ -116,13 +158,9 @@ const audit = await this.loraService.getAuditByIdOrThrow(auditId);
     });
     if (rows.length === 0) return null;
 
-const runAt = rows[0].runAt;
-    const blocks = (audit.measures ?? []).flatMap(
-      (m: { blocks?: unknown }, index: number) =>
-        this.parseBlocks(m.blocks).map((b) => ({
-          ...b,
-          sourceLabel: `Medida ${index + 1}`,
-        }))
+    const runAt = rows[0].runAt;
+    const blocks = this.flattenMeasureSamples(
+      (audit.measures ?? []) as Array<Record<string, any>>
     );
     const noiseEntries = (audit.noise ?? []).flatMap(
       (n: { entries?: unknown }, index: number) =>
@@ -143,14 +181,10 @@ const runAt = rows[0].runAt;
   }
 
   /** Datos para gráficas (señal, pérdidas, ruido) derivados de la auditoría. */
-async getAnalysisData(auditId: string) {
+  async getAnalysisData(auditId: string) {
     const audit = await this.loraService.getAuditByIdOrThrow(auditId);
-    const blocks = (audit.measures ?? []).flatMap(
-      (m: { blocks?: unknown }, index: number) =>
-        this.parseBlocks(m.blocks).map((b) => ({
-          ...b,
-          sourceLabel: `Medida ${index + 1}`,
-        }))
+    const blocks = this.flattenMeasureSamples(
+      (audit.measures ?? []) as Array<Record<string, any>>
     );
     const noiseEntries = (audit.noise ?? []).flatMap(
       (n: { entries?: unknown }, index: number) =>
@@ -164,9 +198,11 @@ async getAnalysisData(auditId: string) {
       blocks: blocks.map((b: Record<string, any>) => ({
         role: b.role ?? null,
         rssi: b.rssi ?? null,
+        rssis: b.rssis ?? null,
         snr: b.snr ?? null,
         packetLossPct: b.packetLossPct ?? null,
         totalPackets: b.totalPackets ?? null,
+        txPower: b.txPower ?? null,
         sourceLabel: b.sourceLabel ?? null,
       })),
       noise: noiseEntries.map((e: Record<string, any>) => ({
@@ -185,5 +221,3 @@ async getAnalysisData(auditId: string) {
     return { ok: true };
   }
 }
-
-

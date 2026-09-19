@@ -27,25 +27,33 @@ export const LORA_AUDIT_STATUS_VARIANTS: Record<
   ARCHIVADA: "destructive",
 };
 
-export interface LoraMeasureBlock {
-  role: string | null;
-  totalPackets: number | null;
-  successfulPackets: number | null;
+export interface LoraSample {
+  id: number;
+  measureId: number;
+  txCnt: number | null;
+  time: string | null;
   rssi: number | null;
+  rssis: number | null;
   snr: number | null;
+  signal: string | null;
+  uplinkPacket: number | null;
+  confirmPacket: number | null;
   packetLossPct: number | null;
   longitude: number | null;
   latitude: number | null;
   location: string | null;
+  sf: string | null;
+  txPower: string | null;
 }
 
 export interface LoraMeasure {
   id: number;
+  source: string | null;
   location: string | null;
   time: string | null;
   spreadingFactor: string | null;
   txPower: string | null;
-  blocks: LoraMeasureBlock[];
+  samples: LoraSample[];
   createdAt: string;
   updatedAt: string;
 }
@@ -66,6 +74,26 @@ export interface LoraNoise {
   updatedAt: string;
 }
 
+export type LoraAuditResult =
+  | "CONFORME"
+  | "CONFORME_CON_ANOTACIONES"
+  | "NO_CONFORME";
+
+export const LORA_AUDIT_RESULT_LABELS: Record<LoraAuditResult, string> = {
+  CONFORME: "Conforme",
+  CONFORME_CON_ANOTACIONES: "Conforme con anotaciones",
+  NO_CONFORME: "No conforme",
+};
+
+export const LORA_AUDIT_RESULT_VARIANTS: Record<
+  LoraAuditResult,
+  "default" | "secondary" | "success" | "destructive" | "outline"
+> = {
+  CONFORME: "success",
+  CONFORME_CON_ANOTACIONES: "secondary",
+  NO_CONFORME: "destructive",
+};
+
 export interface LoraAudit {
   id: string;
   code: string | null;
@@ -84,6 +112,8 @@ export interface LoraAudit {
   noise: LoraNoise[];
   floorPlanId: number | null;
   heatmapRadius: number | null;
+  antenna?: { lat: number; lon: number } | null;
+  result?: LoraAuditResult | null;
   createdAt: string;
   updatedAt: string;
 }

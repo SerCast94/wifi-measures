@@ -44,6 +44,9 @@ export interface ExteriorHeatmapMapProps {
     };
   } | null;
   noisePoint?: ExteriorHeatmapPoint | null;
+  /** Escala fija de leyenda/color. Si no se indica, se autocalcula con los datos. */
+  scaleMin?: number;
+  scaleMax?: number;
 }
 
 const MIN_ALPHA = 0.04;
@@ -170,6 +173,8 @@ export const ExteriorHeatmapMap = ({
   heightClassName = "h-[520px]",
   floorPlan = null,
   noisePoint = null,
+  scaleMin,
+  scaleMax,
 }: ExteriorHeatmapMapProps) => {
   const validPoints = useMemo(
     () =>
@@ -213,17 +218,35 @@ export const ExteriorHeatmapMap = ({
   }, [validPoints, floorPlanBounds, noisePoint]);
 
   const heatPoints = useMemo<[number, number, number][]>(
-    () => planPoints.map((p) => [p.lat, p.lon, p.value]),
-    [planPoints]
+    () =>
+      planPoints.map((p) => {
+        if (
+          scaleMin == null ||
+          scaleMax == null ||
+          scaleMax === scaleMin
+        ) {
+          return [p.lat, p.lon, p.value];
+        }
+        const t = Math.max(
+          0,
+          Math.min(1, (p.value - scaleMin) / (scaleMax - scaleMin))
+        );
+        return [p.lat, p.lon, t];
+      }),
+    [planPoints, scaleMin, scaleMax]
   );
 
+  const fixedScale =
+    scaleMin != null && scaleMax != null && scaleMax > scaleMin;
+
   const range = useMemo(() => {
+    if (fixedScale) return { min: scaleMin as number, max: scaleMax as number };
     if (planPoints.length === 0) return { min: 0, max: 1 };
     const values = planPoints.map((p) => p.value);
     const min = Math.min(...values);
     const max = Math.max(...values);
     return max === min ? { min: min - 1, max: max + 1 } : { min, max };
-  }, [planPoints]);
+  }, [planPoints, fixedScale, scaleMin, scaleMax]);
 
   const center: [number, number] =
     planPoints.length > 0

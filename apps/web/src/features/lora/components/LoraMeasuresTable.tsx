@@ -25,29 +25,60 @@ import {
   TableHeader,
   TableRow,
 } from "@/core/atomic-components/table";
-import type { LoraMeasure, LoraMeasureBlock } from "../types/lora.types";
+import type { LoraMeasure, LoraSample } from "../types/lora.types";
+import {
+  LORA_LEVEL_COLOR,
+  LORA_LEVEL_LABEL,
+  worseOf,
+  levelOf,
+  type LoraQualityLevel,
+} from "../lib/lora-baremo";
 
 const fmt = (value: number | null, digits = 1): string =>
   value === null || value === undefined ? "—" : Number(value).toFixed(digits);
 
-const BLOCK_HEADERS = [
-  "Rol",
-  "Total paq.",
-  "Paq. correctos",
+const SAMPLE_HEADERS = [
+  "Nº",
+  "Hora",
   "RSSI (dBm)",
+  "RSSIS (dBm)",
   "SNR (dB)",
+  "Señal",
+  "Calidad",
+  "UL pkt.",
+  "Confirm.",
   "Pérdida (%)",
   "Longitud",
   "Latitud",
   "Ubicación",
+  "SF",
+  "TX",
 ];
 
-const BlockTable = ({ blocks }: { blocks: LoraMeasureBlock[] }) => (
+const sampleLevel = (sample: LoraSample): LoraQualityLevel =>
+  levelOf({
+    rssi:
+      sample.rssi == null || Number.isNaN(Number(sample.rssi))
+        ? null
+        : Number(sample.rssi),
+    snr:
+      sample.snr == null || Number.isNaN(Number(sample.snr))
+        ? null
+        : Number(sample.snr),
+    signal: sample.signal ?? null,
+    sf: sample.sf ?? null,
+    packetLossPct:
+      sample.packetLossPct == null || Number.isNaN(Number(sample.packetLossPct))
+        ? null
+        : Number(sample.packetLossPct),
+  });
+
+const SampleTable = ({ samples }: { samples: LoraSample[] }) => (
   <div className="overflow-auto rounded-md border bg-muted/20">
     <Table>
       <TableHeader>
         <TableRow>
-          {BLOCK_HEADERS.map((header) => (
+          {SAMPLE_HEADERS.map((header) => (
             <TableHead key={header} className="text-xs">
               {header}
             </TableHead>
@@ -55,17 +86,32 @@ const BlockTable = ({ blocks }: { blocks: LoraMeasureBlock[] }) => (
         </TableRow>
       </TableHeader>
       <TableBody>
-        {blocks.map((block, index) => (
+        {samples.map((sample, index) => (
           <TableRow key={index}>
-            <TableCell className="font-medium">{block.role ?? "—"}</TableCell>
-            <TableCell>{fmt(block.totalPackets, 0)}</TableCell>
-            <TableCell>{fmt(block.successfulPackets, 0)}</TableCell>
-            <TableCell>{fmt(block.rssi)}</TableCell>
-            <TableCell>{fmt(block.snr)}</TableCell>
-            <TableCell>{fmt(block.packetLossPct)}</TableCell>
-            <TableCell>{fmt(block.longitude, 6)}</TableCell>
-            <TableCell>{fmt(block.latitude, 6)}</TableCell>
-            <TableCell>{block.location ?? "—"}</TableCell>
+            <TableCell className="font-medium">{sample.txCnt ?? "—"}</TableCell>
+            <TableCell>{sample.time ?? "—"}</TableCell>
+            <TableCell>{fmt(sample.rssi)}</TableCell>
+            <TableCell>{fmt(sample.rssis)}</TableCell>
+            <TableCell>{fmt(sample.snr)}</TableCell>
+            <TableCell>{sample.signal ?? "—"}</TableCell>
+            <TableCell>
+              <span
+                className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold text-white ring-1 ring-inset ring-white/30"
+                style={{ backgroundColor: LORA_LEVEL_COLOR[sampleLevel(sample)] }}
+                title={LORA_LEVEL_LABEL[sampleLevel(sample)]}
+              >
+                <span className="h-1 w-1 rounded-full bg-white" />
+                {LORA_LEVEL_LABEL[sampleLevel(sample)]}
+              </span>
+            </TableCell>
+            <TableCell>{fmt(sample.uplinkPacket, 0)}</TableCell>
+            <TableCell>{fmt(sample.confirmPacket, 0)}</TableCell>
+            <TableCell>{fmt(sample.packetLossPct)}</TableCell>
+            <TableCell>{fmt(sample.longitude, 6)}</TableCell>
+            <TableCell>{fmt(sample.latitude, 6)}</TableCell>
+            <TableCell>{sample.location ?? "—"}</TableCell>
+            <TableCell>{sample.sf ?? "—"}</TableCell>
+            <TableCell>{sample.txPower ?? "—"}</TableCell>
           </TableRow>
         ))}
       </TableBody>
@@ -102,7 +148,7 @@ export const LoraMeasuresTable = ({
               e.stopPropagation();
               row.getToggleExpandedHandler()();
             }}
-            title={row.getIsExpanded() ? "Ocultar bloques" : "Ver bloques"}
+            title={row.getIsExpanded() ? "Ocultar muestras" : "Ver muestras"}
           >
             {row.getIsExpanded() ? (
               <ChevronDown className="h-4 w-4" />
@@ -121,6 +167,11 @@ export const LoraMeasuresTable = ({
         ),
       },
       {
+        accessorKey: "source",
+        header: "Origen",
+        cell: ({ row }) => row.original.source || "—",
+      },
+      {
         accessorKey: "location",
         header: "Ubicación",
         cell: ({ row }) => row.original.location || "—",
@@ -136,15 +187,53 @@ export const LoraMeasuresTable = ({
         cell: ({ row }) => row.original.spreadingFactor || "—",
       },
       {
+        id: "calidad",
+        header: "Calidad",
+        cell: ({ row }) => {
+          const measure = row.original;
+          let level: LoraQualityLevel | null = null;
+          for (const sample of measure.samples) {
+            const sampleLevel = levelOf({
+              rssi:
+                sample.rssi == null || Number.isNaN(Number(sample.rssi))
+                  ? null
+                  : Number(sample.rssi),
+              snr:
+                sample.snr == null || Number.isNaN(Number(sample.snr))
+                  ? null
+                  : Number(sample.snr),
+              signal: sample.signal ?? null,
+              sf: sample.sf ?? null,
+              packetLossPct:
+                sample.packetLossPct == null ||
+                Number.isNaN(Number(sample.packetLossPct))
+                  ? null
+                  : Number(sample.packetLossPct),
+            });
+            level = level === null ? sampleLevel : worseOf(level, sampleLevel);
+          }
+          if (!level) return "—";
+          const color = LORA_LEVEL_COLOR[level];
+          return (
+            <span
+              className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold text-white"
+              style={{ backgroundColor: color }}
+            >
+              {LORA_LEVEL_LABEL[level]}
+            </span>
+          );
+        },
+      },
+      {
         accessorKey: "txPower",
         header: "TX Power",
         cell: ({ row }) => row.original.txPower || "—",
       },
       {
-        id: "blocks-count",
-        header: "Bloques",
+        id: "samples-count",
+        header: "Muestras",
         cell: ({ row }) => (
-          <Badge variant="secondary">{row.original.blocks.length}</Badge>
+          <Badge variant="secondary">{row.original.samples.length}</Badge>
         ),
       },
     ],
@@ -193,48 +282,46 @@ export const LoraMeasuresTable = ({
                 <EmptyState
                   icon={RadioTowerIcon}
                   title="Todavía no hay medidas"
-                  description="Carga un archivo CSV (1 fila = 1 medida) para empezar."
+                  description="Carga un archivo CSV del escáner (1 fichero = 1 medida, cada fila es una muestra) para empezar."
                 />
               </TableCell>
             </TableRow>
           ) : (
             table.getRowModel().rows.map((row) => (
-              <>
-                <TableRow key={row.id}>
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell
-                      key={cell.id}
-                      className={cn(cell.column.columnDef.meta?.className)}
+              <TableRow key={row.id}>
+                {row.getVisibleCells().map((cell) => (
+                  <TableCell
+                    key={cell.id}
+                    className={cn(cell.column.columnDef.meta?.className)}
+                  >
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </TableCell>
+                ))}
+                {onDelete ? (
+                  <TableCell className="text-right">
+                    <Button
+                      size="icon"
+                      variant="destructive"
+                      title="Eliminar medida"
+                      disabled={deleting}
+                      onClick={() => onDelete(row.original.id)}
                     >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                  {onDelete ? (
-                    <TableCell className="text-right">
-                      <Button
-                        size="icon"
-                        variant="destructive"
-                        title="Eliminar medida"
-                        disabled={deleting}
-                        onClick={() => onDelete(row.original.id)}
-                      >
-                        <Trash2Icon className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  ) : null}
-                </TableRow>
-                {row.getIsExpanded() && (
-                  <TableRow key={`${row.id}-expanded`}>
-                    <TableCell colSpan={row.getVisibleCells().length + (onDelete ? 1 : 0)}>
-                      <BlockTable blocks={row.original.blocks} />
-                    </TableCell>
-                  </TableRow>
-                )}
-              </>
+                      <Trash2Icon className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                ) : null}
+              </TableRow>
             ))
           )}
         </TableBody>
       </Table>
+      {table.getRowModel().rows.map((row) =>
+        row.getIsExpanded() ? (
+          <div key={`${row.id}-expanded`}>
+            <SampleTable samples={row.original.samples} />
+          </div>
+        ) : null
+      )}
     </div>
   );
 };

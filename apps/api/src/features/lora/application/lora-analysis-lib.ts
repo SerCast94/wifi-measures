@@ -6,6 +6,8 @@
  * servicio de evaluación como desde el render del informe PDF.
  */
 
+import { LORA_THRESHOLDS, rssiLevel, snrLevel } from "./lora-baremo";
+
 export type EvalStatus = "PASS" | "WARNING" | "FAIL" | "UNKNOWN";
 
 export interface EvaluatedMetric {
@@ -25,8 +27,10 @@ export interface LoraAnalysisBlock {
   totalPackets?: number | null;
   successfulPackets?: number | null;
   rssi?: number | null;
+  rssis?: number | null;
   snr?: number | null;
   packetLossPct?: number | null;
+  txPower?: string | null;
   longitude?: number | null;
   latitude?: number | null;
   location?: string | null;
@@ -58,25 +62,20 @@ export interface CoherenceResult {
 }
 
 /**
- * Baremo aplicado (límites). Se definen aquí como fuente única y ajustable:
- * el límite marca la frontera inferior de cada nivel.
+ * Baremo del análisis (límites auxiliares). Las escalas de RSSI y SNR usan
+ * como fuente única las funciones rssiLevel/snrLevel de lora-baremo.ts
+ * (mismas fronteras que la tabla de medidas y los mapas de calor).
  */
 export const LORA_BAREMO = {
   rssi: {
-    // RSSI recibido (dBm). Valores más próximos a 0 = mejor señal.
-    excelente: -70,
-    muyBuena: -85,
-    buena: -95,
-    aceptable: -105,
-    debil: -115,
+    excelente: LORA_THRESHOLDS.rssi.excelente,
+    muyBuena: LORA_THRESHOLDS.rssi.buena,
+    buena: LORA_THRESHOLDS.rssi.aceptable,
   },
   snr: {
-    // Relación señal/ruido (dB).
-    excelente: 10,
-    muyBuena: 5,
-    buena: 0,
-    aceptable: -5,
-    debil: -10,
+    excelente: LORA_THRESHOLDS.snr.excelente,
+    muyBuena: LORA_THRESHOLDS.snr.buena,
+    buena: LORA_THRESHOLDS.snr.aceptable,
   },
   packetLoss: {
     // Pérdida de paquetes (%). El límite marca el máx. aceptado por nivel.
@@ -115,6 +114,20 @@ export const LORA_BAREMO = {
     aceptable: 0,
     debil: -5,
   },
+  rssis: {
+    // Diferencia |RSSI - RSSI senoidal| para considerar la muestra fiable.
+    consistente: 6,
+    sospechosa: 15,
+  },
+  ackRate: {
+    // Tasa de confirmación (confirm/uplink) aceptada por nivel.
+    buena: 80,
+    aceptable: 60,
+  },
+  txPower: {
+    // Potencia de transmisión (dBm) — márgenes orientativos.
+    adecuada: 10,
+  },
 } as const;
 
 const fmt = (value: number | null, digits = 0): string =>
@@ -123,24 +136,6 @@ const fmt = (value: number | null, digits = 0): string =>
     : Number(value).toFixed(digits);
 
 // ---------- Clasificaciones individuales ----------
-
-const rssiLevel = (rssi: number): string => {
-  if (rssi >= LORA_BAREMO.rssi.excelente) return "EXCELENTE";
-  if (rssi >= LORA_BAREMO.rssi.muyBuena) return "MUY BUENA";
-  if (rssi >= LORA_BAREMO.rssi.buena) return "BUENA";
-  if (rssi >= LORA_BAREMO.rssi.aceptable) return "ACEPTABLE";
-  if (rssi >= LORA_BAREMO.rssi.debil) return "DÉBIL";
-  return "CRÍTICA";
-};
-
-const snrLevel = (snr: number): string => {
-  if (snr >= LORA_BAREMO.snr.excelente) return "EXCELENTE";
-  if (snr >= LORA_BAREMO.snr.muyBuena) return "MUY BUENA";
-  if (snr >= LORA_BAREMO.snr.buena) return "BUENA";
-  if (snr >= LORA_BAREMO.snr.aceptable) return "ACEPTABLE";
-  if (snr >= LORA_BAREMO.snr.debil) return "DÉBIL";
-  return "CRÍTICA";
-};
 
 const packetLossLevel = (pct: number): string => {
   if (pct <= LORA_BAREMO.packetLoss.excelentePct) return "EXCELENTE";
@@ -177,9 +172,9 @@ const levelToStatus = (
   return "FAIL";
 };
 
-const RSSI_OK = ["EXCELENTE", "MUY BUENA", "BUENA"];
+const RSSI_OK = ["EXCELENTE", "BUENA"];
 const RSSI_WARN = ["ACEPTABLE"];
-const SNR_OK = ["EXCELENTE", "MUY BUENA", "BUENA"];
+const SNR_OK = ["EXCELENTE", "BUENA"];
 const SNR_WARN = ["ACEPTABLE"];
 const LOSS_OK = ["EXCELENTE", "MUY BUENA"];
 const LOSS_WARN = ["BUENA", "ACEPTABLE"];
@@ -359,6 +354,130 @@ export function evaluateMargin(
   };
 }
 
+const numOf = (value: unknown): number | null =>
+  value === null || value === undefined || Number.isNaN(Number(value))
+    ? null
+    : Number(value);
+
+export function evaluateRssisConsistency(
+  block: LoraAnalysisBlock,
+  role?: string
+): EvaluatedMetric | null {
+  const origin = composeOrigin(block.sourceLabel, role);
+  const rssi = numOf(block.rssi);
+  const rssis = numOf(block.rssis);
+
+  // Solo RSSI: ya lo evalúa evaluateRssi.
+  if (rssi !== null && rssis === null) return null;
+  if (rssi === null && rssis === null) return null;
+
+  if (rssi !== null && rssis !== null) {
+    const gap = Math.abs(rssi - rssis);
+    const status =
+      gap <= LORA_BAREMO.rssis.consistente
+        ? "PASS"
+        : gap <= LORA_BAREMO.rssis.sospechosa
+          ? "WARNING"
+          : "FAIL";
+    return {
+      category: "RADIO",
+      metric: "RSSI_SENOIDAL",
+      value: Math.round(gap * 100) / 100,
+      unit: "dB",
+      status,
+      label: null,
+      sourceLabel: block.sourceLabel ?? null,
+      elementRole: role ?? null,
+      message:
+        status === "PASS"
+          ? `${origin}RSSI ${rssi.toFixed(0)} dBm y RSSI senoidal ${rssis.toFixed(0)} dBm coherentes (Δ ${gap.toFixed(1)} dB).`
+          : `${origin}RSSI ${rssi.toFixed(0)} dBm frente a RSSI senoidal ${rssis.toFixed(0)} dBm (Δ ${gap.toFixed(1)} dB): discrepancia ${status === "FAIL" ? "significativa" : "a vigilar"}; revisa calibrado o receptor.`,
+    };
+  }
+
+  // Fallback: falta RSSI principal, se valora con el senoidal.
+  const level = rssiLevel(rssis as number);
+  return {
+    category: "RADIO",
+    metric: "RSSI_SENOIDAL",
+    value: rssis,
+    unit: "dBm",
+    status: levelToStatus(level, RSSI_OK, RSSI_WARN),
+    label: level,
+    sourceLabel: block.sourceLabel ?? null,
+    elementRole: role ?? null,
+    message: `${origin}RSSI principal sin dato; valorado con RSSI senoidal ${(rssis as number).toFixed(0)} dBm → ${level}.`,
+  };
+}
+
+export function evaluateAckRate(
+  block: LoraAnalysisBlock,
+  role?: string
+): EvaluatedMetric | null {
+  const origin = composeOrigin(block.sourceLabel, role);
+  const total = numOf(block.totalPackets);
+  const ack = numOf(block.successfulPackets);
+  if (total === null || ack === null || total <= 0) return null;
+  const pct = Math.min(100, Math.round((ack / total) * 1000) / 10);
+  const status =
+    pct >= LORA_BAREMO.ackRate.buena
+      ? "PASS"
+      : pct >= LORA_BAREMO.ackRate.aceptable
+        ? "WARNING"
+        : "FAIL";
+  return {
+    category: "PAQUETES",
+    metric: "ACK_RATE",
+    value: pct,
+    unit: "%",
+    status,
+    label:
+      status === "PASS"
+        ? "BUENA"
+        : status === "WARNING"
+          ? "ACEPTABLE"
+          : "DEBIL",
+    sourceLabel: block.sourceLabel ?? null,
+    elementRole: role ?? null,
+    message: `${origin}Confirmación de ${ack}/${total} paquetes (${pct.toFixed(1)}%)${status === "PASS" ? "." : "; revisa el gateway/ACK en la red."}`,
+  };
+}
+
+export function evaluateTxPower(
+  block: LoraAnalysisBlock,
+  role?: string
+): EvaluatedMetric | null {
+  const origin = composeOrigin(block.sourceLabel, role);
+  const raw = block.txPower;
+  const match =
+    raw === null || raw === undefined
+      ? null
+      : String(raw).match(/-?\d+(\.\d+)?/);
+  if (!match) return null;
+  const tx = Number(match[0]);
+  if (!Number.isFinite(tx)) return null;
+  const status =
+    tx >= LORA_BAREMO.txPower.adecuada ? "PASS" : tx > 0 ? "WARNING" : "FAIL";
+  const label =
+    status === "PASS" ? "ADECUADA" : status === "WARNING" ? "BAJA" : "CRITICA";
+  return {
+    category: "RADIO",
+    metric: "TX_POWER",
+    value: tx,
+    unit: "dBm",
+    status,
+    label,
+    sourceLabel: block.sourceLabel ?? null,
+    elementRole: role ?? null,
+    message:
+      status === "PASS"
+        ? `${origin}Potencia de transmisión ${tx.toFixed(0)} dBm adecuada para el enlace.`
+        : status === "WARNING"
+          ? `${origin}Potencia de transmisión baja (${tx.toFixed(0)} dBm); margen de enlace reducido.`
+          : `${origin}Potencia de transmisión crítica (${tx.toFixed(0)} dBm); sin margen operativo.`,
+  };
+}
+
 // ---------- Ruido (por entrada de frecuencia) ----------
 
 export function noiseCategoryLabel(frequency: number): string {
@@ -515,7 +634,7 @@ export function coherenceAnalysis(
       title: "Caso coherente / correcto",
       status: "PASS",
       message: `RSSI ${fmt(rssi)} dBm, SNR ${fmt(snr, 1)} dB, pérdida ${fmt(lossPct, 1)}% y margen radio adecuado: parámetros coherentes.`,
-      recommendation: "No se requiere actuación para este bloque.",
+      recommendation: "No se requiere actuación para esta muestra.",
     };
   }
   if ((!rssiOk || !snrOk) && lossOk) {
@@ -674,6 +793,13 @@ export function analyzeLora(
     evaluations.push(evaluateSnr(block.snr, label, block.sourceLabel));
     evaluations.push(evaluatePacketLoss(block, label));
     evaluations.push(evaluateMargin(block, noiseFloor, label));
+
+    const rssisMetric = evaluateRssisConsistency(block, label);
+    if (rssisMetric) evaluations.push(rssisMetric);
+    const ackMetric = evaluateAckRate(block, label);
+    if (ackMetric) evaluations.push(ackMetric);
+    const txMetric = evaluateTxPower(block, label);
+    if (txMetric) evaluations.push(txMetric);
 
     const coherenceResult = coherenceAnalysis(block, noiseFloor);
     coherence.push({

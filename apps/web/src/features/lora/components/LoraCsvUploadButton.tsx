@@ -27,23 +27,21 @@ export const LoraCsvUploadButton = ({
 
   const handleParsed = async (text: string, fileName: string) => {
     if (kind === "measures") {
-      const records = parseLoraMeasuresCsv(text);
+      const records = parseLoraMeasuresCsv(text, fileName);
       if (records.length === 0) {
         toast.error(
-          `No se encontraron bloques válidos en «${fileName}». Revisa el formato del CSV.`
+          `No se encontraron muestras válidas en «${fileName}». Revisa el formato del CSV.`
         );
         return;
       }
-      const blocks = records.reduce(
-        (sum, record) => sum + (record.blocks?.length ?? 0),
+      const samples = records.reduce(
+        (sum, record) => sum + (record.samples?.length ?? 0),
         0
       );
       try {
         const created = await createMeasures.mutateAsync(records);
         toast.success(
-          `Se cargó «${fileName}» con ${blocks} bloques (${records.length} ${
-            records.length === 1 ? "medida" : "medidas"
-          }).`
+          `Se cargó «${fileName}» con ${samples} ${samples === 1 ? "muestra" : "muestras"}.`
         );
         onCreated?.(created);
       } catch {

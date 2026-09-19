@@ -3,24 +3,30 @@ import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { DatabaseService } from "@core/database/database.service";
 import { ExteriorHeatmapService } from "@features/exterior-heatmaps/application/exterior-heatmap.service";
 
-export interface LoraMeasureBlockInput {
-  role?: string | null;
-  totalPackets?: number | null;
-  successfulPackets?: number | null;
+export interface LoraSampleInput {
+  txCnt?: number | null;
+  time?: string | null;
   rssi?: number | null;
+  rssis?: number | null;
   snr?: number | null;
+  signal?: string | null;
+  uplinkPacket?: number | null;
+  confirmPacket?: number | null;
   packetLossPct?: number | null;
   longitude?: number | null;
   latitude?: number | null;
   location?: string | null;
+  sf?: string | null;
+  txPower?: string | null;
 }
 
 export interface CreateLoraMeasureInput {
+  source?: string | null;
   location?: string | null;
   time?: string | null;
   spreadingFactor?: string | null;
   txPower?: string | null;
-  blocks?: LoraMeasureBlockInput[];
+  samples?: LoraSampleInput[];
 }
 
 export interface LoraNoiseEntryInput {
@@ -34,6 +40,11 @@ export interface CreateLoraNoiseInput {
   longitude?: number | null;
   latitude?: number | null;
   entries?: LoraNoiseEntryInput[];
+}
+
+export interface LoraAntennaPoint {
+  lat: number;
+  lon: number;
 }
 
 export interface CreateLoraAuditInput {
@@ -52,9 +63,28 @@ export interface CreateLoraAuditInput {
   noiseIds?: number[];
   floorPlanId?: number | null;
   heatmapRadius?: number | null;
+  antenna?: LoraAntennaPoint | null;
+  /**
+   * Resultado de conformidad seleccionado manualmente:
+   * CONFORME | CONFORME_CON_ANOTACIONES | NO_CONFORME | null (sin definir).
+   */
+  result?: string | null;
 }
 
 export type UpdateLoraAuditInput = Partial<CreateLoraAuditInput>;
+
+/** Ordena medidas/ruidos por nombre de ubicación (nulls al final). */
+const byLocation = (
+  a: { location?: string | null },
+  b: { location?: string | null }
+): number => {
+  const la = (a.location ?? "").trim().toLowerCase();
+  const lb = (b.location ?? "").trim().toLowerCase();
+  if (!la && !lb) return 0;
+  if (!la) return 1;
+  if (!lb) return -1;
+  return la.localeCompare(lb, "es", { numeric: true, sensitivity: "base" });
+};
 
 @Injectable()
 export class LoraService {
@@ -77,14 +107,38 @@ export class LoraService {
     const rows = Array.isArray(inputs) ? inputs : [];
     const created: any[] = [];
     for (const input of rows) {
+      const samples = (
+        Array.isArray(input.samples) ? input.samples : []
+      ).filter((sample): sample is LoraSampleInput =>
+        Boolean(sample && typeof sample === "object")
+      );
       const record = await client.loraMeasure.create({
         data: {
+          source: input.source ?? null,
           location: input.location ?? null,
           time: input.time ?? null,
           spreadingFactor: input.spreadingFactor ?? null,
           txPower: input.txPower ?? null,
-          blocks: Array.isArray(input.blocks) ? input.blocks : [],
+          samples: {
+            create: samples.map((sample) => ({
+              txCnt: sample.txCnt ?? null,
+              time: sample.time ?? null,
+              rssi: sample.rssi ?? null,
+              rssis: sample.rssis ?? null,
+              snr: sample.snr ?? null,
+              signal: sample.signal ?? null,
+              uplinkPacket: sample.uplinkPacket ?? null,
+              confirmPacket: sample.confirmPacket ?? null,
+              packetLossPct: sample.packetLossPct ?? null,
+              longitude: sample.longitude ?? null,
+              latitude: sample.latitude ?? null,
+              location: sample.location ?? null,
+              sf: sample.sf ?? null,
+              txPower: sample.txPower ?? null,
+            })),
+          },
         },
+        include: { samples: true },
       });
       created.push(record);
     }
@@ -94,7 +148,11 @@ export class LoraService {
   async listMeasures() {
     const client = this.client;
     if (!client) return [];
-    return client.loraMeasure.findMany({ orderBy: { createdAt: "desc" } });
+    const rows = await client.loraMeasure.findMany({
+      orderBy: { createdAt: "desc" },
+      include: { samples: true },
+    });
+    return rows.sort(byLocation);
   }
 
   async clearMeasures() {
@@ -109,6 +167,23 @@ export class LoraService {
     if (!client) throw new Error("Base de datos no disponible");
     await client.loraMeasure.delete({ where: { id } });
     return { ok: true };
+  }
+
+  /**
+   * Actualiza la posición de una medida: como todas sus muestras comparten
+   * coordenada (1 CSV = 1 ubicación), se actualizan todas a la vez.
+   */
+  async updateMeasureLocation(id: number, latitude: number, longitude: number) {
+    const client = this.client;
+    if (!client) throw new Error("Base de datos no disponible");
+    await client.loraSample.updateMany({
+      where: { measureId: id },
+      data: { latitude, longitude },
+    });
+    return client.loraMeasure.findUnique({
+      where: { id },
+      include: { samples: true },
+    });
   }
 
   // ---------- Ruido ----------
@@ -135,7 +210,10 @@ export class LoraService {
   async listNoise() {
     const client = this.client;
     if (!client) return [];
-    return client.loraNoise.findMany({ orderBy: { createdAt: "desc" } });
+    const rows = await client.loraNoise.findMany({
+      orderBy: { createdAt: "desc" },
+    });
+    return rows.sort(byLocation);
   }
 
   async clearNoise() {
@@ -150,6 +228,15 @@ export class LoraService {
     if (!client) throw new Error("Base de datos no disponible");
     await client.loraNoise.delete({ where: { id } });
     return { ok: true };
+  }
+
+  async updateNoiseLocation(id: number, latitude: number, longitude: number) {
+    const client = this.client;
+    if (!client) throw new Error("Base de datos no disponible");
+    return client.loraNoise.update({
+      where: { id },
+      data: { latitude, longitude },
+    });
   }
 
   // ---------- Auditorías ----------
@@ -180,12 +267,17 @@ export class LoraService {
       }),
     ]);
 
-    return { items: items.map((a: object) => this.toAuditView(a)), total, page, size };
+    return {
+      items: items.map((a: object) => this.toAuditView(a)),
+      total,
+      page,
+      size,
+    };
   }
 
   private auditInclude() {
     return {
-      measureLinks: { include: { measure: true } },
+      measureLinks: { include: { measure: { include: { samples: true } } } },
       noiseLinks: { include: { noise: true } },
       floorPlan: true,
     };
@@ -195,8 +287,10 @@ export class LoraService {
     const raw = audit as unknown as Record<string, any>;
     return {
       ...audit,
-      measures: (raw.measureLinks ?? []).map((l: any) => l.measure),
-      noise: (raw.noiseLinks ?? []).map((l: any) => l.noise),
+      measures: (raw.measureLinks ?? [])
+        .map((l: any) => l.measure)
+        .sort(byLocation),
+      noise: (raw.noiseLinks ?? []).map((l: any) => l.noise).sort(byLocation),
       measureLinks: undefined,
       noiseLinks: undefined,
     } as T & {
@@ -242,6 +336,8 @@ export class LoraService {
         endDate: input.endDate ?? null,
         floorPlanId: input.floorPlanId ?? null,
         heatmapRadius: input.heatmapRadius ?? 0.16,
+        antenna: input.antenna ?? null,
+        result: input.result ?? null,
         measureLinks: {
           create: (input.measureIds ?? []).map((measureId) => ({ measureId })),
         },
@@ -281,7 +377,10 @@ export class LoraService {
       await client.loraAuditMeasure.deleteMany({ where: { auditId: id } });
       if (input.measureIds.length > 0) {
         await client.loraAuditMeasure.createMany({
-          data: input.measureIds.map((measureId) => ({ auditId: id, measureId })),
+          data: input.measureIds.map((measureId) => ({
+            auditId: id,
+            measureId,
+          })),
         });
       }
     }
@@ -319,6 +418,30 @@ export class LoraService {
     return client.loraAudit.update({ where: { id }, data: { status } });
   }
 
+  /** Guarda la posición manual de la antena (gateway/emisor) sobre el plano. */
+  async updateAuditAntenna(id: string, latitude: number, longitude: number) {
+    await this.getAuditByIdOrThrow(id);
+    const client = this.client;
+    if (!client) throw new Error("Base de datos no disponible");
+    await client.loraAudit.update({
+      where: { id },
+      data: { antenna: { lat: latitude, lon: longitude } },
+    });
+    return this.getAuditByIdOrThrow(id);
+  }
+
+  /** Establece a mano el resultado de conformidad de la auditoría (null = limpiar). */
+  async updateAuditResult(id: string, result: string | null) {
+    await this.getAuditByIdOrThrow(id);
+    const client = this.client;
+    if (!client) throw new Error("Base de datos no disponible");
+    await client.loraAudit.update({
+      where: { id },
+      data: { result: result === "" ? null : result },
+    });
+    return this.getAuditByIdOrThrow(id);
+  }
+
   async removeAudit(id: string) {
     await this.getAuditByIdOrThrow(id);
     const client = this.client;
@@ -353,33 +476,40 @@ export class LoraService {
         recent: [],
       };
 
-    const [byStatus, analysisGroups, recent, measures, noise, withoutData, withoutPlan] =
-      await Promise.all([
-        client.loraAudit.groupBy({ by: ["status"], _count: { _all: true } }),
-        client.loraAnalysis.groupBy({
-          by: ["auditId", "status"],
-          _count: { _all: true },
-        }),
-        client.loraAudit.findMany({
-          orderBy: { createdAt: "desc" },
-          take: 5,
-          select: {
-            id: true,
-            name: true,
-            code: true,
-            client: true,
-            status: true,
-            floorPlanId: true,
-            createdAt: true,
-          },
-        }),
-        client.loraAuditMeasure.count(),
-        client.loraAuditNoise.count(),
-        client.loraAudit.count({
-          where: { measureLinks: { none: {} }, noiseLinks: { none: {} } },
-        }),
-        client.loraAudit.count({ where: { floorPlanId: null } }),
-      ]);
+    const [
+      byStatus,
+      analysisGroups,
+      recent,
+      measures,
+      noise,
+      withoutData,
+      withoutPlan,
+    ] = await Promise.all([
+      client.loraAudit.groupBy({ by: ["status"], _count: { _all: true } }),
+      client.loraAnalysis.groupBy({
+        by: ["auditId", "status"],
+        _count: { _all: true },
+      }),
+      client.loraAudit.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          client: true,
+          status: true,
+          floorPlanId: true,
+          createdAt: true,
+        },
+      }),
+      client.loraAuditMeasure.count(),
+      client.loraAuditNoise.count(),
+      client.loraAudit.count({
+        where: { measureLinks: { none: {} }, noiseLinks: { none: {} } },
+      }),
+      client.loraAudit.count({ where: { floorPlanId: null } }),
+    ]);
 
     const byStatusMap: Record<string, number> = {};
     for (const row of byStatus as any[])
@@ -387,7 +517,12 @@ export class LoraService {
 
     const perAudit = new Map<string, Record<string, number>>();
     for (const row of analysisGroups as any[]) {
-      const map = perAudit.get(row.auditId) ?? { PASS: 0, WARNING: 0, FAIL: 0, UNKNOWN: 0 };
+      const map = perAudit.get(row.auditId) ?? {
+        PASS: 0,
+        WARNING: 0,
+        FAIL: 0,
+        UNKNOWN: 0,
+      };
       map[row.status] += row._count._all;
       perAudit.set(row.auditId, map);
     }

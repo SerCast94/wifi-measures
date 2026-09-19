@@ -80,9 +80,9 @@ const LoraMapPage = () => {
     const pts: Array<{ lat: number; lon: number }> = [];
     for (const audit of audits ?? []) {
       for (const measure of audit.measures ?? []) {
-        for (const block of measure.blocks ?? []) {
-          if (block.latitude != null && block.longitude != null) {
-            pts.push({ lat: block.latitude, lon: block.longitude });
+        for (const sample of measure.samples ?? []) {
+          if (sample.latitude != null && sample.longitude != null) {
+            pts.push({ lat: sample.latitude, lon: sample.longitude });
           }
         }
       }

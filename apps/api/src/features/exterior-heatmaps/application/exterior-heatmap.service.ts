@@ -227,7 +227,7 @@ export class ExteriorHeatmapService {
     const loraAudit = await client.loraAudit.findUnique({
       where: { id: loraAuditId },
       include: {
-        measureLinks: { include: { measure: true } },
+        measureLinks: { include: { measure: { include: { samples: true } } } },
         noiseLinks: { include: { noise: true } },
         floorPlan: true,
       },
@@ -237,18 +237,18 @@ export class ExteriorHeatmapService {
 
     for (const link of loraAudit.measureLinks ?? []) {
       const measure = link.measure;
-      const blocks = Array.isArray(measure?.blocks) ? measure.blocks : [];
-      for (const block of blocks ?? []) {
-        const lat = toFloat(block.latitude);
-        const lon = toFloat(block.longitude);
+      const samples = Array.isArray(measure?.samples) ? measure.samples : [];
+      for (const sample of samples ?? []) {
+        const lat = toFloat(sample.latitude);
+        const lon = toFloat(sample.longitude);
         if (lat === null || lon === null) continue;
-        const rssi = toFloat(block.rssi);
-        const snr = toFloat(block.snr);
+        const rssi = toFloat(sample.rssi);
+        const snr = toFloat(sample.snr);
         points.push({
           lat,
           lon,
           value: rssi ?? snr ?? 0,
-          label: block.location ?? "Medida LoRa",
+          label: sample.location ?? measure?.location ?? "Medida LoRa",
         });
       }
     }

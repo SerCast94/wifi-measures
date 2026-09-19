@@ -11,9 +11,11 @@ import {
   SelectValue,
 } from "@/core/atomic-components/select";
 import { LoraAuditStatusBadge } from "@/features/lora/components/badges";
-import { useLoraAudit, useUpdateLoraAuditStatus } from "@/features/lora/hooks/use-lora";
+import { useLoraAudit, useUpdateLoraAuditStatus, useUpdateAuditResult } from "@/features/lora/hooks/use-lora";
 import {
   LORA_AUDIT_STATUS_LABELS,
+  LORA_AUDIT_RESULT_LABELS,
+  type LoraAuditResult,
   type LoraAuditStatus,
 } from "@/features/lora/types/lora.types";
 import { loraReportPdfUrl } from "@/features/lora/api/lora-api";
@@ -32,11 +34,19 @@ const STATUS_OPTIONS: LoraAuditStatus[] = [
   "ARCHIVADA",
 ];
 
+const RESULT_OPTIONS: Array<{ value: LoraAuditResult | "SIN_RESULTADO"; label: string }> = [
+  { value: "SIN_RESULTADO", label: "Sin resultado" },
+  { value: "CONFORME", label: "Conforme" },
+  { value: "CONFORME_CON_ANOTACIONES", label: "Conforme con anotaciones" },
+  { value: "NO_CONFORME", label: "No conforme" },
+];
+
 const LoraAuditHeader = () => {
   const { auditId = "" } = useParams<{ auditId: string }>();
   const location = useLocation();
   const { data: audit } = useLoraAudit(auditId);
   const updateStatus = useUpdateLoraAuditStatus(auditId);
+  const updateResult = useUpdateAuditResult(auditId);
 
   if (!audit) return null;
 
@@ -55,6 +65,32 @@ const LoraAuditHeader = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Select
+            value={audit.result ?? "SIN_RESULTADO"}
+            onValueChange={(value) =>
+              updateResult.mutate(
+                value === "SIN_RESULTADO"
+                  ? null
+                  : (value as LoraAuditResult)
+              )
+            }
+            disabled={updateResult.isPending}
+          >
+            <SelectTrigger className="w-44">
+              <SelectValue placeholder="Resultado" />
+            </SelectTrigger>
+            <SelectContent>
+              {RESULT_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.value === "SIN_RESULTADO"
+                    ? "Sin resultado"
+                    : `Resultado: ${LORA_AUDIT_RESULT_LABELS[
+                        option.value as LoraAuditResult
+                      ].toLowerCase()}`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select
             value={audit.status}
             onValueChange={(value) => updateStatus.mutate(value as LoraAuditStatus)}

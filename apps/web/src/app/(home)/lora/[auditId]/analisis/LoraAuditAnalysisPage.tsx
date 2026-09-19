@@ -26,6 +26,10 @@ import {
   type LoraEvalStatus,
   type LoraEvaluationItem,
 } from "@/features/lora/types/lora.types";
+import {
+  RSSI_LEVEL_BUCKETS,
+  SNR_LEVEL_BUCKETS,
+} from "@/features/lora/lib/lora-baremo";
 
 const STATUS_COLORS: Record<LoraEvalStatus, string> = {
   PASS: "#16a34a",
@@ -41,6 +45,9 @@ const METRIC_LABELS: Record<string, string> = {
   MARGIN: "Margen radio",
   NOISE_DELTA: "Variación de ruido",
   COHERENCIA: "Coherencia cruzada",
+  RSSI_SENOIDAL: "RSSI senoidal (rssis)",
+  ACK_RATE: "Tasa de confirmación",
+  TX_POWER: "Potencia TX",
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -85,23 +92,7 @@ const byElementThenCategory = (
 
 type BucketRange = { label: string; min: number; max: number; color: string };
 
-const RSSI_RANGES: BucketRange[] = [
-  { label: "≤ -95", min: -Infinity, max: -95, color: "#dc2626" },
-  { label: "-95…-85", min: -95, max: -85, color: "#dc2626" },
-  { label: "-85…-75", min: -85, max: -75, color: "#f97316" },
-  { label: "-75…-70", min: -75, max: -70, color: "#d97706" },
-  { label: "-70…-60", min: -70, max: -60, color: "#16a34a" },
-  { label: "> -60", min: -60, max: Infinity, color: "#22c55e" },
-];
-
-const SNR_RANGES: BucketRange[] = [
-  { label: "< 0", min: -Infinity, max: 0, color: "#dc2626" },
-  { label: "0…5", min: 0, max: 5, color: "#d97706" },
-  { label: "5…10", min: 5, max: 10, color: "#f97316" },
-  { label: "10…15", min: 10, max: 15, color: "#16a34a" },
-  { label: "15…20", min: 15, max: 20, color: "#16a34a" },
-  { label: "≥ 20", min: 20, max: Infinity, color: "#22c55e" },
-];
+const RSSI_BUCKETS: BucketRange[] = RSSI_LEVEL_BUCKETS as BucketRange[];
 
 const MARGIN_RANGES: BucketRange[] = [
   { label: "≤ -10", min: -Infinity, max: -10, color: "#dc2626" },
@@ -120,12 +111,12 @@ const LOSS_RANGES: BucketRange[] = [
 ];
 
 const NOISE_RANGES: BucketRange[] = [
-  { label: "≤ -115", min: -Infinity, max: -115, color: "#6366f1" },
-  { label: "-115…-105", min: -115, max: -105, color: "#6366f1" },
-  { label: "-105…-95", min: -105, max: -95, color: "#6366f1" },
-  { label: "-95…-90", min: -95, max: -90, color: "#6366f1" },
-  { label: "-90…-80", min: -90, max: -80, color: "#6366f1" },
-  { label: "> -80", min: -80, max: Infinity, color: "#6366f1" },
+  { label: "≤ -115", min: -Infinity, max: -115, color: "#dc2626" },
+  { label: "-115…-105", min: -115, max: -105, color: "#ef4444" },
+  { label: "-105…-95", min: -105, max: -95, color: "#f97316" },
+  { label: "-95…-90", min: -95, max: -90, color: "#eab308" },
+  { label: "-90…-80", min: -90, max: -80, color: "#a3e635" },
+  { label: "> -80", min: -80, max: Infinity, color: "#22c55e" },
 ];
 
 const bucketize = (
@@ -211,7 +202,7 @@ const CategoryBadRows = ({
   category: string;
 }) => {
   const bad = rows.filter(
-    (row) => row.status === "FAIL" || row.label === "CRÍTICA"
+    (row) => row.status === "FAIL" || row.label === "CRÍTICA" || row.label === "CRITICA"
   );
   const unknown = rows.filter((row) => row.status === "UNKNOWN");
   if (bad.length === 0 && unknown.length === 0) return null;
@@ -418,8 +409,8 @@ const LoraAnalysisContent = ({
     b.rssi != null && noiseFloor != null ? b.rssi - noiseFloor : null
   );
 
-  const rssiBuckets = bucketize(blocks.map((b) => b.rssi), RSSI_RANGES);
-  const snrBuckets = bucketize(blocks.map((b) => b.snr), SNR_RANGES);
+  const rssiBuckets = bucketize(blocks.map((b) => b.rssi), RSSI_BUCKETS);
+  const snrBuckets = bucketize(blocks.map((b) => b.snr), SNR_LEVEL_BUCKETS);
   const marginBuckets = bucketize(marginValues, MARGIN_RANGES);
   const lossBuckets = bucketize(blocks.map((b) => b.packetLossPct), LOSS_RANGES);
   const noiseBuckets = bucketize(noise.map((n) => n.currentScan), NOISE_RANGES);
@@ -578,8 +569,8 @@ const LoraAnalysisContent = ({
               <p className="mb-1 text-sm font-semibold">Distribución RSSI (dBm)</p>
               <HistogramBars buckets={rssiBuckets} />
               <p className="mt-1 text-xs text-muted-foreground">
-                {blocks.length} bloques · agregados por umbral. Verde ≥ −70 ·
-                ámbar −85…−70 · rojo &lt; −85 dBm.
+                {blocks.length} muestras · baremo LoRa: &gt; −70 excelente ·
+                −85 buena · −100 aceptable · −115 débil · &lt; −115 crítica dBm.
               </p>
             </div>
           )}
@@ -588,8 +579,8 @@ const LoraAnalysisContent = ({
               <p className="mb-1 text-sm font-semibold">Distribución SNR (dB)</p>
               <HistogramBars buckets={snrBuckets} />
               <p className="mt-1 text-xs text-muted-foreground">
-                {blocks.length} bloques · agregados por umbral. Verde ≥ 10 ·
-                ámbar −5…10 · rojo &lt; −5 dB.
+                {blocks.length} muestras · baremo LoRa: ≥ 10 excelente ·
+                5 buena · 0 aceptable · −5 débil · &lt; −5 crítica dB.
               </p>
             </div>
           )}
@@ -600,7 +591,7 @@ const LoraAnalysisContent = ({
               </p>
               <HistogramBars buckets={marginBuckets} />
               <p className="mt-1 text-xs text-muted-foreground">
-                {blocks.length} bloques · margen = RSSI − piso de ruido. Verde ≥
+                {blocks.length} muestras · margen = RSSI − piso de ruido. Verde ≥
                 10 · ámbar 0…10 · rojo &lt; 0 dB.
               </p>
             </div>
@@ -612,7 +603,7 @@ const LoraAnalysisContent = ({
               </p>
               <BucketRows buckets={lossBuckets} />
               <p className="mt-1 text-xs text-muted-foreground">
-                {blocks.length} bloques · verde ≤ 5% · ámbar 5–20% · rojo &gt;
+                {blocks.length} muestras · verde ≤ 5% · ámbar 5–20% · rojo &gt;
                 20%.
               </p>
             </div>
@@ -637,14 +628,14 @@ const LoraAnalysisContent = ({
           <CardTitle className="text-base">
             Coherencia cruzada
             <span className="ml-2 text-xs font-normal text-muted-foreground">
-              {analysis.coherence.length} bloque
-              {analysis.coherence.length === 1 ? "" : "s"} evaluados
+              {analysis.coherence.length} muestra
+              {analysis.coherence.length === 1 ? "" : "s"} evaluadas
             </span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
           <p className="text-xs text-muted-foreground">
-            Confronta las métricas de cada bloque (RSSI, SNR, pérdidas y margen)
+            Confronta las métricas de cada muestra (RSSI, SNR, pérdidas y margen)
             para detectar contradicciones entre la señal y la entrega de
             paquetes.
           </p>

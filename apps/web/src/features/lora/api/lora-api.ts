@@ -4,6 +4,7 @@ import type {
   LoraAnalysis,
   LoraAnalysisData,
   LoraAudit,
+  LoraAuditResult,
   LoraMeasure,
   LoraNoise,
   LoraStats,
@@ -11,24 +12,30 @@ import type {
 
 const VERSION = "v1";
 
-export interface LoraMeasureBlockInput {
-  role?: string | null;
-  totalPackets?: number | null;
-  successfulPackets?: number | null;
+export interface LoraSampleInput {
+  txCnt?: number | null;
+  time?: string | null;
   rssi?: number | null;
+  rssis?: number | null;
   snr?: number | null;
+  signal?: string | null;
+  uplinkPacket?: number | null;
+  confirmPacket?: number | null;
   packetLossPct?: number | null;
   longitude?: number | null;
   latitude?: number | null;
   location?: string | null;
+  sf?: string | null;
+  txPower?: string | null;
 }
 
 export interface CreateLoraMeasureInput {
+  source?: string | null;
   location?: string | null;
   time?: string | null;
   spreadingFactor?: string | null;
   txPower?: string | null;
-  blocks?: LoraMeasureBlockInput[];
+  samples?: LoraSampleInput[];
 }
 
 export interface LoraNoiseEntryInput {
@@ -73,6 +80,22 @@ export const getLoraMeasures = async (): Promise<LoraMeasure[]> => {
   }
 };
 
+export const updateMeasureLocation = async (
+  id: number,
+  lat: number,
+  lon: number
+): Promise<LoraMeasure> => {
+  try {
+    const { data } = await apiClient.patch<{ data: LoraMeasure }>(
+      `${VERSION}/lora/measures/${id}/location`,
+      { latitude: lat, longitude: lon }
+    );
+    return data.data;
+  } catch (error) {
+    handleApiError(error);
+  }
+};
+
 export const createLoraMeasures = async (
   rows: CreateLoraMeasureInput[]
 ): Promise<LoraMeasure[]> => {
@@ -107,6 +130,22 @@ export const getLoraNoise = async (): Promise<LoraNoise[]> => {
   try {
     const { data } = await apiClient.get<{ data: LoraNoise[] }>(
       `${VERSION}/lora/noise`
+    );
+    return data.data;
+  } catch (error) {
+    handleApiError(error);
+  }
+};
+
+export const updateNoiseLocation = async (
+  id: number,
+  lat: number,
+  lon: number
+): Promise<LoraNoise> => {
+  try {
+    const { data } = await apiClient.patch<{ data: LoraNoise }>(
+      `${VERSION}/lora/noise/${id}/location`,
+      { latitude: lat, longitude: lon }
     );
     return data.data;
   } catch (error) {
@@ -215,6 +254,37 @@ export const updateLoraAudit = async (
     const { data } = await apiClient.patch<{ data: LoraAudit }>(
       `${VERSION}/lora/audits/${id}`,
       input
+    );
+    return data.data;
+  } catch (error) {
+    handleApiError(error);
+  }
+};
+
+export const updateAuditAntenna = async (
+  id: string,
+  latitude: number,
+  longitude: number
+): Promise<LoraAudit> => {
+  try {
+    const { data } = await apiClient.patch<{ data: LoraAudit }>(
+      `${VERSION}/lora/audits/${id}/antenna`,
+      { latitude, longitude }
+    );
+    return data.data;
+  } catch (error) {
+    handleApiError(error);
+  }
+};
+
+export const updateAuditResult = async (
+  id: string,
+  result: LoraAuditResult | null
+): Promise<LoraAudit> => {
+  try {
+    const { data } = await apiClient.patch<{ data: LoraAudit }>(
+      `${VERSION}/lora/audits/${id}/result`,
+      { result: result ?? "" }
     );
     return data.data;
   } catch (error) {

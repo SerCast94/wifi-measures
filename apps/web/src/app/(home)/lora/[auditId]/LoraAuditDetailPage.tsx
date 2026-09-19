@@ -32,7 +32,15 @@ import { LinkFloorPlanDialog } from "@/features/lora/components/LinkFloorPlanDia
 import { LoraPlanHeatmap } from "@/features/lora/components/LoraPlanHeatmap";
 import { useFloorPlans } from "@/features/floorplans/hooks/use-floorplans";
 import { normalizeGeoCalibration } from "@/features/floorplans/types/floorplan.types";
-import { useLoraAudit, useUpdateLoraAudit } from "@/features/lora/hooks/use-lora";
+import {
+  useLoraAudit,
+  useUpdateLoraAudit,
+  useUpdateMeasureLocation,
+  useUpdateNoiseLocation,
+  useUpdateAuditAntenna,
+  useRunLoraAnalysis,
+} from "@/features/lora/hooks/use-lora";
+import { toast } from "sonner";
 
 const GEO_CORNERS = [
   {
@@ -114,7 +122,12 @@ const LoraAuditDetailPage = () => {
   const { data: audit, isLoading } = useLoraAudit(auditId);
   const { data: allPlans = [] } = useFloorPlans();
   const [showLinkDialog, setShowLinkDialog] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const updateAudit = useUpdateLoraAudit();
+  const updateMeasureLocation = useUpdateMeasureLocation();
+  const updateNoiseLocation = useUpdateNoiseLocation();
+  const updateAuditAntenna = useUpdateAuditAntenna();
+  const runAnalysis = useRunLoraAnalysis(auditId);
 
   const [draftRadius, setDraftRadius] = useState<number>(audit?.heatmapRadius ?? 0.16);
   const auditRadius = audit?.heatmapRadius ?? 0.16;
@@ -128,6 +141,46 @@ const LoraAuditDetailPage = () => {
       id: audit.id,
       input: { heatmapRadius: Number(value) },
     });
+  };
+
+  const handleMoveMeasure = (measureId: number, lat: number, lon: number) => {
+    updateMeasureLocation.mutate(
+      { id: measureId, lat, lon },
+      {
+        onSuccess: () => {
+          toast.success("Medida reposicionada");
+          if (audit) runAnalysis.mutate();
+        },
+        onError: (error) =>
+          toast.error(`Error al repositionar la medida: ${error.message}`),
+      }
+    );
+  };
+
+  const handleMoveNoise = (noiseId: number, lat: number, lon: number) => {
+    updateNoiseLocation.mutate(
+      { id: noiseId, lat, lon },
+      {
+        onSuccess: () => {
+          toast.success("Punto de ruido reposicionado");
+          if (audit) runAnalysis.mutate();
+        },
+        onError: (error) =>
+          toast.error(`Error al repositionar el ruido: ${error.message}`),
+      }
+    );
+  };
+
+  const handleMoveAntenna = (lat: number, lon: number) => {
+    if (!audit) return;
+    updateAuditAntenna.mutate(
+      { id: audit.id, lat, lon },
+      {
+        onSuccess: () => toast.success("Posición de la antena guardada"),
+        onError: (error) =>
+          toast.error(`Error al guardar la antena: ${error.message}`),
+      }
+    );
   };
 
   const auditFloorPlan = audit?.floorPlanId
@@ -222,14 +275,25 @@ const LoraAuditDetailPage = () => {
       <Card className="mt-4">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-base">Plano asociado</CardTitle>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowLinkDialog(true)}
-          >
-            <LinkIcon className="mr-2 h-4 w-4" />
-            {auditFloorPlan ? "Cambiar" : "Vincular plano"}
-          </Button>
+          <div className="flex items-center gap-2">
+            {auditFloorPlan && geoCalibration && audit.measures.length > 0 ? (
+              <Button
+                variant={isEditing ? "default" : "outline"}
+                size="sm"
+                onClick={() => setIsEditing((prev) => !prev)}
+              >
+                {isEditing ? "Terminar edición" : "Editar posiciones"}
+              </Button>
+            ) : null}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowLinkDialog(true)}
+            >
+              <LinkIcon className="mr-2 h-4 w-4" />
+              {auditFloorPlan ? "Cambiar" : "Vincular plano"}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {auditFloorPlan ? (
@@ -275,6 +339,11 @@ const LoraAuditDetailPage = () => {
                     measures={audit.measures}
                     noise={audit.noise}
                     radius={draftRadius}
+                    editable={isEditing}
+                    onMoveMeasure={handleMoveMeasure}
+                    onMoveNoise={handleMoveNoise}
+                    onMoveAntenna={handleMoveAntenna}
+                    antenna={audit.antenna ?? null}
                   />
                 ) : (
                   <img

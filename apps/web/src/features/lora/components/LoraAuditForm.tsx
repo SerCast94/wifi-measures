@@ -109,9 +109,9 @@ export const LoraAuditForm = ({
     const pts: Array<{ lat: number; lon: number }> = [];
     for (const measure of measures ?? []) {
       if (!measureIds.includes(String(measure.id))) continue;
-      for (const block of measure.blocks ?? []) {
-        if (block.latitude != null && block.longitude != null) {
-          pts.push({ lat: block.latitude, lon: block.longitude });
+      for (const sample of measure.samples ?? []) {
+        if (sample.latitude != null && sample.longitude != null) {
+          pts.push({ lat: sample.latitude, lon: sample.longitude });
         }
       }
     }

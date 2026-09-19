@@ -315,17 +315,42 @@ model AuditSyncLog {
 
 model LoraMeasure {
   id              Int       @id @default(autoincrement())
+  source          String?
   location        String?
   time            String?
   spreadingFactor String?   @map("spreading_factor")
   txPower         String?   @map("tx_power")
-  blocks          Json      @default("[]")
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
+  samples    LoraSample[]
   auditLinks LoraAuditMeasure[]
 
   @@map("lora_measures")
+}
+
+model LoraSample {
+  id            Int     @id @default(autoincrement())
+  measureId     Int     @map("measure_id")
+  txCnt         Int?    @map("tx_cnt")
+  time          String?
+  rssi          Float?
+  rssis         Float?
+  snr           Float?
+  signal        String?
+  uplinkPacket  Int?    @map("uplink_packet")
+  confirmPacket Int?    @map("confirm_packet")
+  packetLossPct Float?  @map("packet_loss_pct")
+  longitude     Float?
+  latitude      Float?
+  location      String?
+  sf            String?
+  txPower       String? @map("tx_power")
+
+  measure LoraMeasure @relation(fields: [measureId], references: [id], onDelete: Cascade)
+
+  @@index([measureId])
+  @@map("lora_measure_samples")
 }
 
 model LoraNoise {
@@ -358,6 +383,8 @@ model LoraAudit {
   endDate        DateTime? @map("end_date")
   floorPlanId    Int?     @map("floor_plan_id")
   heatmapRadius  Float?   @map("heatmap_radius") @default(0.16)
+  result         String?  // CONFORME | CONFORME_CON_ANOTACIONES | NO_CONFORME (seleccionado manualmente)
+  antenna        Json? // { lat, lon } posición manual de la antena (gateway/emisor)
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 

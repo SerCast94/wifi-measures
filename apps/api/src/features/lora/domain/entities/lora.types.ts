@@ -14,3 +14,14 @@ export const LORA_AUDIT_STATUSES = [
   "INFORME_GENERADO",
   "ARCHIVADA",
 ] as const;
+
+export type LoraAuditResult =
+  | "CONFORME"
+  | "CONFORME_CON_ANOTACIONES"
+  | "NO_CONFORME";
+
+export const LORA_AUDIT_RESULTS = [
+  "CONFORME",
+  "CONFORME_CON_ANOTACIONES",
+  "NO_CONFORME",
+] as const;

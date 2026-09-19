@@ -50,11 +50,11 @@ export const LinkFloorPlanDialog = ({
     const pts: Array<{ lat: number; lon: number }> = [];
     if (!audit) return pts;
     for (const measure of audit.measures) {
-      for (const block of measure.blocks) {
-        if (block.latitude != null && block.longitude != null) {
-          pts.push({ lat: block.latitude, lon: block.longitude });
-        }
+for (const sample of measure.samples) {
+      if (sample.latitude != null && sample.longitude != null) {
+        pts.push({ lat: sample.latitude, lon: sample.longitude });
       }
+    }
     }
     for (const noise of audit.noise) {
       if (noise.latitude != null && noise.longitude != null) {
