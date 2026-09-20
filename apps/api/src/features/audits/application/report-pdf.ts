@@ -71,7 +71,9 @@ export function heatmap(data: any, metricOverride?: string): string {
   const W = Math.max(200, Math.round((dim ? dim.w : 800) * scale));
   const H = Math.max(150, Math.round((dim ? dim.h : 600) * scale));
   const ratio = (dim ? dim.w : W) / (dim ? dim.h : H);
-  const maxR = Math.max(W, H) * (Number.isFinite(Number(data.maxRadius)) ? Number(data.maxRadius) : 0.16);
+  const maxR =
+    Math.max(W, H) *
+    (Number.isFinite(Number(data.maxRadius)) ? Number(data.maxRadius) : 0.16);
   const cell = Math.max(6, Math.floor(Math.max(W, H) / 200));
   const MIN_A = 0.04;
   const MAX_A = 0.62;

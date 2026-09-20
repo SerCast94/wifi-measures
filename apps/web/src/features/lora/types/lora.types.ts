@@ -162,9 +162,14 @@ export interface LoraAnalysis {
 export interface LoraAnalysisChartBlock {
   role: string | null;
   rssi: number | null;
+  rssis: number | null;
   snr: number | null;
   packetLossPct: number | null;
   totalPackets: number | null;
+  successfulPackets: number | null;
+  txPower: string | null;
+  signal: string | null;
+  sf: string | null;
   sourceLabel?: string | null;
 }
 

@@ -27,8 +27,13 @@ import {
   type LoraEvaluationItem,
 } from "@/features/lora/types/lora.types";
 import {
+  LORA_LEVEL_COLOR,
+  LORA_LEVEL_LABEL,
   RSSI_LEVEL_BUCKETS,
   SNR_LEVEL_BUCKETS,
+  levelOf,
+  worseOf,
+  type LoraQualityLevel,
 } from "@/features/lora/lib/lora-baremo";
 
 const STATUS_COLORS: Record<LoraEvalStatus, string> = {
@@ -39,6 +44,7 @@ const STATUS_COLORS: Record<LoraEvalStatus, string> = {
 };
 
 const METRIC_LABELS: Record<string, string> = {
+  COBERTURA: "Cobertura",
   RSSI: "RSSI",
   SNR: "SNR",
   PACKET_LOSS: "Pérdida de paquetes",
@@ -51,6 +57,7 @@ const METRIC_LABELS: Record<string, string> = {
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
+  COBERTURA: "Cobertura",
   RADIO: "Radio (RSSI / SNR)",
   PAQUETES: "Paquetes",
   RUIDO: "Ruido por banda",
@@ -58,7 +65,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   COHERENCIA: "Coherencia cruzada",
 };
 
-const CATEGORY_ORDER = ["RADIO", "PAQUETES", "RUIDO", "MARGEN", "COHERENCIA"];
+const CATEGORY_ORDER = ["COBERTURA", "RADIO", "PAQUETES", "RUIDO", "MARGEN", "COHERENCIA"];
 
 const categoryKey = (item: LoraEvaluationItem): string =>
   item.metric === "NOISE_DELTA"
@@ -294,7 +301,7 @@ const PointDetailSection = ({
         <tbody>
           {rows.map((evaluation) => (
             <tr
-              key={`${evaluation.metric}-${categoryKey(evaluation)}`}
+              key={`${evaluation.metric}-${categoryKey(evaluation)}-${evaluation.elementRole ?? ""}`}
               className="border-b align-top last:border-b-0"
             >
               <td className="py-1 pr-2">
@@ -385,7 +392,19 @@ const LoraAnalysisContent = ({
   noiseRecords = [],
 }: {
   analysis: LoraAnalysis;
-  blocks: Array<{ role: string | null; rssi: number | null; snr: number | null; packetLossPct: number | null; totalPackets: number | null }>;
+  blocks: Array<{
+    role: string | null;
+    rssi: number | null;
+    rssis: number | null;
+    snr: number | null;
+    packetLossPct: number | null;
+    totalPackets: number | null;
+    successfulPackets: number | null;
+    txPower: string | null;
+    signal: string | null;
+    sf: string | null;
+    sourceLabel?: string | null;
+  }>;
   noise: Array<{ frequency: number | null; currentScan: number | null; weightedAverageScan: number | null }>;
   measures?: Array<{
     location?: string | null;
@@ -414,6 +433,70 @@ const LoraAnalysisContent = ({
   const marginBuckets = bucketize(marginValues, MARGIN_RANGES);
   const lossBuckets = bucketize(blocks.map((b) => b.packetLossPct), LOSS_RANGES);
   const noiseBuckets = bucketize(noise.map((n) => n.currentScan), NOISE_RANGES);
+
+  const avg = (vals: number[]) =>
+    vals.length
+      ? Math.round((vals.reduce((s, v) => s + v, 0) / vals.length) * 10) / 10
+      : null;
+
+  const measureSummary = (() => {
+    const byM = new Map<string, Array<(typeof blocks)[number]>>();
+    for (const b of blocks) {
+      const key = b.sourceLabel ?? "—";
+      if (!byM.has(key)) byM.set(key, []);
+      byM.get(key)!.push(b);
+    }
+    return [...byM.entries()]
+      .sort(([a], [b]) => {
+        const an = Number(a.match(/^Medida (\d+)/)?.[1] ?? 999);
+        const bn = Number(b.match(/^Medida (\d+)/)?.[1] ?? 999);
+        return an - bn;
+      })
+      .map(([label, bs]) => {
+        const rssiVals = bs
+          .map((b) => b.rssi)
+          .filter((v): v is number => v != null);
+        const snrVals = bs
+          .map((b) => b.snr)
+          .filter((v): v is number => v != null);
+        const lossVals = bs
+          .map((b) => b.packetLossPct)
+          .filter((v): v is number => v != null);
+        const totalVals = bs
+          .map((b) => b.totalPackets)
+          .filter((v): v is number => v != null);
+        const okVals = bs
+          .map((b) => b.successfulPackets)
+          .filter((v): v is number => v != null);
+        const sumT = totalVals.reduce((s, v) => s + v, 0);
+        const sumO = okVals.reduce((s, v) => s + v, 0);
+        let worst: LoraQualityLevel | null = null;
+        for (const b of bs) {
+          const lv = levelOf({
+            rssi: b.rssi,
+            snr: b.snr,
+            packetLossPct: b.packetLossPct,
+          });
+          worst = worst === null ? lv : worseOf(worst, lv);
+        }
+        return {
+          label,
+          size: bs.length,
+          enlace: bs.filter((b) => b.rssi != null || b.snr != null).length,
+          rssiMin: rssiVals.length ? Math.min(...rssiVals) : null,
+          rssiAvg: avg(rssiVals),
+          snrMin: snrVals.length ? Math.min(...snrVals) : null,
+          snrAvg: avg(snrVals),
+          lossAvg: avg(lossVals),
+          ackPct: sumT > 0 ? Math.round((sumO / sumT) * 1000) / 10 : null,
+          pktAvg:
+            totalVals.length > 0
+              ? Math.round((sumT / totalVals.length) * 10) / 10
+              : null,
+          worst,
+        };
+      });
+  })();
 
   const categories = CATEGORY_ORDER.filter((category) =>
     analysis.evaluations.some((evaluation) => evaluation.category === category)
@@ -517,7 +600,12 @@ const LoraAnalysisContent = ({
                   <span className="text-sm font-semibold">
                     {CATEGORY_LABELS[category] ?? category}
                     <span className="ml-2 text-xs font-normal text-muted-foreground">
-                      {total} {category === "RUIDO" ? "bandas" : "bloques"}
+                      {total}{" "}
+                      {category === "RUIDO"
+                        ? "bandas"
+                        : category === "COBERTURA"
+                          ? "medidas"
+                          : "bloques"}
                     </span>
                   </span>
                   <div className="flex items-center gap-2 text-xs">
@@ -558,6 +646,86 @@ const LoraAnalysisContent = ({
           })}
         </CardContent>
       </Card>
+
+      {measureSummary.length > 0 && (
+        <Card className="mb-4">
+          <CardHeader className="pb-1">
+            <CardTitle className="text-base">
+              Resumen por medida
+              <span className="ml-2 text-xs font-normal text-muted-foreground">
+                {measureSummary.length} medidas · agregado sin repetir muestras
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-xs text-muted-foreground">
+                  <th className="py-1 pr-2 font-medium">Medida</th>
+                  <th className="py-1 pr-2 font-medium">Muestras</th>
+                  <th className="py-1 pr-2 font-medium">Con enlace</th>
+                  <th className="py-1 pr-2 font-medium">RSSI mín→med (dBm)</th>
+                  <th className="py-1 pr-2 font-medium">SNR mín→med (dB)</th>
+                  <th className="py-1 pr-2 font-medium">Pérdida media</th>
+                  <th className="py-1 pr-2 font-medium">Acuses</th>
+                  <th className="py-1 pr-2 font-medium">Pkts/muestra</th>
+                  <th className="py-1 font-medium">Nivel</th>
+                </tr>
+              </thead>
+              <tbody>
+                {measureSummary.map((m) => {
+                  const range = (min: number | null, med: number | null) =>
+                    med == null
+                      ? "—"
+                      : min == null || med === min
+                        ? String(med)
+                        : `${min} → ${med}`;
+                  const level = m.worst ?? null;
+                  return (
+                    <tr
+                      key={m.label}
+                      className="border-b align-top last:border-b-0"
+                    >
+                      <td className="py-1 pr-2 font-medium">{m.label}</td>
+                      <td className="py-1 pr-2">{m.size}</td>
+                      <td className="py-1 pr-2">
+                        {m.enlace}/{m.size}
+                      </td>
+                      <td className="py-1 pr-2 whitespace-nowrap">
+                        {range(m.rssiMin, m.rssiAvg)}
+                      </td>
+                      <td className="py-1 pr-2 whitespace-nowrap">
+                        {range(m.snrMin, m.snrAvg)}
+                      </td>
+                      <td className="py-1 pr-2">
+                        {m.lossAvg != null ? `${m.lossAvg}%` : "—"}
+                      </td>
+                      <td className="py-1 pr-2">
+                        {m.ackPct != null ? `${m.ackPct}%` : "—"}
+                      </td>
+                      <td className="py-1 pr-2">
+                        {m.pktAvg != null ? m.pktAvg : "—"}
+                      </td>
+                      <td className="py-1">
+                        <span
+                          className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold text-white"
+                          style={{
+                            backgroundColor: level
+                              ? LORA_LEVEL_COLOR[level]
+                              : "#9ca3af",
+                          }}
+                        >
+                          {level ? LORA_LEVEL_LABEL[level] : "—"}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="mb-4">
         <CardHeader className="pb-1">

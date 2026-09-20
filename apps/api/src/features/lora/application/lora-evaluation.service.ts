@@ -73,6 +73,8 @@ export class LoraEvaluationService {
       snr: sample.snr ?? null,
       packetLossPct: sample.packetLossPct ?? null,
       txPower: sample.txPower ?? null,
+      signal: sample.signal ?? null,
+      sf: sample.sf ?? null,
       longitude: sample.longitude ?? null,
       latitude: sample.latitude ?? null,
       location: sample.location ?? null,
@@ -110,7 +112,7 @@ export class LoraEvaluationService {
     );
 
     const { evaluations, coherence } = analyzeLora(blocks, noiseEntries);
-    const summary = summarizeAnalysis(evaluations);
+    const summary = summarizeAnalysis(evaluations, blocks);
 
     const batchId = `lora-run-${Date.now()}`;
     const runAt = new Date();
@@ -122,7 +124,7 @@ export class LoraEvaluationService {
           category: e.category,
           metric: e.metric,
           blockRole:
-            [e.sourceLabel, e.elementRole].filter(Boolean).join(" � ") || null,
+            [e.sourceLabel, e.elementRole].filter(Boolean).join(" · ") || null,
           value: e.value,
           unit: e.unit,
           status: e.status,
@@ -175,7 +177,7 @@ export class LoraEvaluationService {
       batchId: `lora-run-${runAt.getTime()}`,
       runAt,
       evaluations,
-      summary: summarizeAnalysis(evaluations),
+      summary: summarizeAnalysis(evaluations, blocks),
       coherence,
     };
   }
@@ -202,7 +204,10 @@ export class LoraEvaluationService {
         snr: b.snr ?? null,
         packetLossPct: b.packetLossPct ?? null,
         totalPackets: b.totalPackets ?? null,
+        successfulPackets: b.successfulPackets ?? null,
         txPower: b.txPower ?? null,
+        signal: b.signal ?? null,
+        sf: b.sf ?? null,
         sourceLabel: b.sourceLabel ?? null,
       })),
       noise: noiseEntries.map((e: Record<string, any>) => ({

@@ -62,6 +62,36 @@ export const SNR_FLOOR_BY_SF: Record<string, number> = {
   SF12: -20,
 };
 
+// Margen LoRa real = SNR medido - piso teórico del SF (dB).
+// Este margen sí refleja la robustez del enlace LoRa.
+export const LORA_SNR_MARGIN_THRESHOLDS = {
+  excelente: 10,
+  buena: 5,
+  aceptable: 0,
+  debil: -5,
+} as const;
+
+// Normaliza el SF de entrada a clave de piso: acepta "SF10", "SF10-DR2", "SF10 DR2", ...
+export const sfFloorKey = (sf: string | null | undefined): string | null => {
+  if (!sf) return null;
+  const match = String(sf).toUpperCase().match(/(SF\d+)/);
+  return match ? match[0] : null;
+};
+
+export const snrMarginLevel = (
+  snr: number,
+  sf: string | null
+): LoraQualityLevel => {
+  const sfKey = sfFloorKey(sf);
+  const floor = sfKey ? SNR_FLOOR_BY_SF[sfKey] ?? -20 : -20; // conservador si SF desconocido
+  const margin = snr - floor;
+  if (margin >= LORA_SNR_MARGIN_THRESHOLDS.excelente) return "EXCELENTE";
+  if (margin >= LORA_SNR_MARGIN_THRESHOLDS.buena) return "BUENA";
+  if (margin >= LORA_SNR_MARGIN_THRESHOLDS.aceptable) return "ACEPTABLE";
+  if (margin >= LORA_SNR_MARGIN_THRESHOLDS.debil) return "DEBIL";
+  return "CRITICA";
+};
+
 const LEVEL_RANK: Record<LoraQualityLevel, number> = {
   EXCELENTE: 6,
   BUENA: 5,
@@ -126,8 +156,8 @@ export const levelOf = (input: LevelOfInput): LoraQualityLevel => {
 
   let level = worseOf(rssiLevel(rssi as number), snrLevel(snr as number));
   if (typeof sf === "string" && isValued(snr)) {
-    const sfKey = sf.trim().split(/\s+/)[0].toUpperCase();
-    const floor = SNR_FLOOR_BY_SF[sfKey];
+    const sfKey = sfFloorKey(sf);
+    const floor = sfKey ? SNR_FLOOR_BY_SF[sfKey] : undefined;
     if (floor != null && (snr as number) < floor) {
       level = worseOf(level, "CRITICA");
     }

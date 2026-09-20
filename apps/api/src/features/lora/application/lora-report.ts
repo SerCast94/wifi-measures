@@ -4,15 +4,18 @@
  */
 
 import { renderPdf } from "@features/audits/application/report-pdf";
+import { createRequire } from "node:module";
 import {
   analyzeLora,
   summarizeAnalysis,
+  LORA_BAREMO,
   type EvalStatus,
   type EvaluatedMetric,
 } from "./lora-analysis-lib";
 import {
   LORA_LEVEL_COLOR,
   LORA_LEVEL_LABEL,
+  LORA_LEVELS,
   NOISE_SCALE,
   RSSI_LEVEL_BUCKETS,
   SIGNAL_SCALE,
@@ -23,6 +26,8 @@ import {
   rssiLevel,
   snrLevel,
   levelOf,
+  worseOf,
+  SNR_FLOOR_BY_SF,
   type LoraBucket,
   type LoraQualityLevel,
 } from "./lora-baremo";
@@ -65,14 +70,19 @@ const sampleRoleText = (sample: Record<string, any>, index: number): string => {
   return `Muestra ${index + 1}`;
 };
 
-function table(headers: string[], rows: Array<Array<string | number>>): string {
+type TableCell = string | number | { __raw: string };
+
+/** Marca una celda de tabla como HTML pre-renderizado (evita escaparlo). */
+const raw = (html: string): TableCell => ({ __raw: html });
+
+function table(headers: string[], rows: Array<Array<TableCell>>): string {
   if (rows.length === 0) return '<p class="muted">Sin datos.</p>';
+  const renderCell = (cell: TableCell): string =>
+    `<td>${typeof cell === "object" && cell !== null ? cell.__raw : esc(String(cell))}</td>`;
   return `<table><thead><tr>${headers
     .map((header) => `<th>${esc(header)}</th>`)
     .join("")}</tr></thead><tbody>${rows
-    .map(
-      (row) => `<tr>${row.map((cell) => `<td>${esc(cell)}</td>`).join("")}</tr>`
-    )
+    .map((row) => `<tr>${row.map(renderCell).join("")}</tr>`)
     .join("")}</tbody></table>`;
 }
 
@@ -301,7 +311,7 @@ function planHeatmapsHtml(
   if (!image) return "";
   const geo = normalizeGeoCalibration(floorPlan?.geoCalibration);
   if (!geo)
-    return '<section class="break"><h2 id="sec-cobertura">Cobertura sobre el plano</h2><p class="muted">El plano base no está georreferenciado; no se puede dibujar el mapa de calor.</p></section>';
+    return '<section class="break"><h2 id="sec-cobertura"><span class="secnum">4</span> Cobertura sobre el plano</h2><p class="muted">El plano base no está georreferenciado; no se puede dibujar el mapa de calor.</p></section>';
 
   const W0 = Math.max(200, Math.round(Number(floorPlan?.width) || 800));
   const H0 = Math.max(150, Math.round(Number(floorPlan?.height) || 600));
@@ -543,7 +553,7 @@ function planHeatmapsHtml(
     ? '<p class="muted">El marcador de antena (mástil con panel sectorial y ondas) indica la posición del gateway/emisor.</p>'
     : "";
 
-  return `<section class="break"><h2 id="sec-cobertura">Cobertura sobre el plano</h2>
+  return `<section class="break"><h2 id="sec-cobertura"><span class="secnum">4</span> Cobertura sobre el plano</h2>
     <p class="muted">Plano base: ${esc(floorPlan.name ?? "—")}</p>
     ${maps.join("")}${antennaNote}</section>`;
 }
@@ -593,17 +603,20 @@ function coherenceHtml(coherence: Array<Record<string, any>>): string {
     .join("");
 }
 
-function analysisHtml(
-  blocks: Array<Record<string, any>>,
-  noiseEntries: Array<Record<string, any>>,
-  measures: Array<Record<string, any>>,
-  noiseRecords: Array<Record<string, any>>,
-  manualResult?: string | null
-): string {
-  const { evaluations, coherence } = analyzeLora(blocks, noiseEntries);
-  const summary = summarizeAnalysis(evaluations);
-  const total = summary.total;
+/** Leyenda del baremo de niveles LoRa (peor métrica de cada muestra). */
+function levelsLegendHtml(): string {
+  return `<div class="levels">${LORA_LEVELS.map(
+    (lvl) =>
+      `<div class="levels-item"><span class="swatch" style="background:${lvl.color}"></span>${esc(lvl.label)}</div>`
+  ).join("")}</div>
+  <p class="muted">Nivel por muestra = peor métrica entre RSSI, SNR, pérdida de paquetes y margen.</p>`;
+}
 
+/** Distribuciones (RSSI, SNR, margen, pérdida y ruido) como tallas de gráfica. */
+function analysisChartsHtml(
+  blocks: Array<Record<string, any>>,
+  noiseEntries: Array<Record<string, any>>
+): string {
   const charts: string[] = [];
 
   // RSSI por bloque
@@ -656,7 +669,29 @@ function analysisHtml(
       <p class="muted">${noiseEntries.length} frecuencias del scan actual · agregadas por umbral.</p>`);
   }
 
-  return `<section class="break"><h2 id="sec-analisis">Análisis del enlace</h2>
+  return (
+    charts.map((c) => `<div class="chartcell">${c}</div>`).join("") ||
+    '<p class="muted">Sin datos para gráficas.</p>'
+  );
+}
+
+/**
+ * Construye las secciones del análisis en el orden del documento:
+ * [0] Vista general, [1] Gráficas, [2] Detalle, [3] Coherencia, [4] Recomendaciones.
+ */
+function buildAnalysisParts(
+  blocks: Array<Record<string, any>>,
+  noiseEntries: Array<Record<string, any>>,
+  measures: Array<Record<string, any>>,
+  noiseRecords: Array<Record<string, any>>,
+  evaluations: EvaluatedMetric[],
+  coherence: Array<Record<string, any>>,
+  summary: ReturnType<typeof summarizeAnalysis>,
+  manualResult?: string | null
+): string[] {
+  const total = summary.total;
+
+  const overview = `<section class="break"><h2 id="sec-vista-general"><span class="secnum">3</span> Vista general</h2>
     <div class="kpis">
       <div class="kpi"><b>${total}</b>criterios</div>
       <div class="kpi"><b style="color:#16a34a">${summary.byStatus.PASS}</b>conformes</div>
@@ -664,7 +699,7 @@ function analysisHtml(
       <div class="kpi"><b style="color:#dc2626">${summary.byStatus.FAIL}</b>no conformes</div>
     </div>
 
-    <h3 id="sec-analisis-global">Resultado global: ${esc(globalLabel(summary.globalResult))}</h3>
+    <h3>Resultado global: ${esc(globalLabel(manualResult ?? summary.globalResult))}</h3>
     ${
       manualResult
         ? `<p class="muted">Ajustado a mano por el auditor: <b>${esc(globalLabel(manualResult))}</b></p>`
@@ -672,25 +707,31 @@ function analysisHtml(
     }
     ${summary.paragraphs.map((p) => `<p>${esc(p)}</p>`).join("")}
 
-    <h3 id="sec-analisis-categorias">Resumen por categoría</h3>
+    <h3>Resumen por categoría</h3>
     ${categorySummaryHtml(evaluations)}
 
-    <h3 id="sec-analisis-detalle">Detalle por medida y ruido</h3>
-    ${elementDetailHtml(evaluations, measures, noiseRecords)}
+    ${blocks.length > 0 ? `<h3>Resumen por medida</h3>${measureSummaryTable(blocks)}` : ""}
 
-    <h3 id="sec-analisis-coherencia">Coherencia cruzada</h3>
-    <p class="muted">Confronta las métricas de cada muestra (RSSI, SNR, pérdidas y margen) para detectar contradicciones entre la señal y la entrega de paquetes.</p>
-    ${coherenceHtml(coherence)}
-
-    <h3 id="sec-analisis-recomendaciones">Recomendaciones</h3>
-    <ul>${summary.recommendations.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>
-
-    <section class="break"><h3 id="sec-analisis-graficas">Gráficas</h3>
-      <div class="chartgrid">
-        ${charts.map((c) => `<div class="chartcell">${c}</div>`).join("") || '<p class="muted">Sin datos para gráficas.</p>'}
-      </div>
-    </section>
+    <h3>Baremo de niveles</h3>
+    ${levelsLegendHtml()}
   </section>`;
+
+  const charts = `<section class="break"><h2 id="sec-graficas"><span class="secnum">5</span> Gráficas del enlace</h2>
+    <div class="chartgrid">${analysisChartsHtml(blocks, noiseEntries)}</div>
+  </section>`;
+
+  const detail = `<h3 id="sec-analisis-detalle">8.1 Detalle por medida y ruido</h3>
+    ${elementDetailHtml(evaluations, measures, noiseRecords)}`;
+
+  const coherencePart = `<h3 id="sec-analisis-coherencia">8.2 Coherencia cruzada</h3>
+    <p class="muted">Confronta las métricas de cada muestra (RSSI, SNR, pérdidas y margen) para detectar contradicciones entre la señal y la entrega de paquetes.</p>
+    ${coherenceHtml(coherence)}`;
+
+  const recommendations = `<section class="break"><h2 id="sec-recomendaciones"><span class="secnum">9</span> Recomendaciones</h2>
+    <ul>${summary.recommendations.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>
+  </section>`;
+
+  return [overview, charts, detail, coherencePart, recommendations];
 }
 
 function summarizeMarginChart(
@@ -729,6 +770,7 @@ const globalLabel = (result: string): string =>
 
 const metricLabel = (metric: string): string =>
   ({
+    COBERTURA: "Cobertura",
     RSSI: "RSSI",
     SNR: "SNR",
     PACKET_LOSS: "Pérdida de paquetes",
@@ -740,8 +782,16 @@ const metricLabel = (metric: string): string =>
 // Tabla resumen por categoría: cuántas condiciones caen en cada estado y los
 // peores casos, para extraer conclusiones sin leer cientos de filas.
 function categorySummaryHtml(evaluations: EvaluatedMetric[]): string {
-  const order = ["RADIO", "PAQUETES", "RUIDO", "MARGEN", "COHERENCIA"];
+  const order = [
+    "COBERTURA",
+    "RADIO",
+    "PAQUETES",
+    "RUIDO",
+    "MARGEN",
+    "COHERENCIA",
+  ];
   const labels: Record<string, string> = {
+    COBERTURA: "Cobertura",
     RADIO: "Radio (RSSI / SNR)",
     PAQUETES: "Paquetes",
     RUIDO: "Ruido por banda",
@@ -833,6 +883,226 @@ function elementDetailHtml(
   return parts.join("");
 }
 
+// Resumen agregado por medida: una fila por medida con los promedios, en vez
+// de leer decenas de filas por muestra.
+function measureSummaryTable(blocks: Array<Record<string, any>>): string {
+  const byMeasure = new Map<string, Array<Record<string, any>>>();
+  for (const b of blocks) {
+    const key = String(b.sourceLabel ?? "—");
+    if (!byMeasure.has(key)) byMeasure.set(key, []);
+    byMeasure.get(key)!.push(b);
+  }
+  const ordered = [...byMeasure.entries()].sort(([a], [b]) => {
+    const an = Number(String(a).match(/^Medida\s+(\d+)/)?.[1] ?? 999);
+    const bn = Number(String(b).match(/^Medida\s+(\d+)/)?.[1] ?? 999);
+    return an - bn;
+  });
+
+  const nums = (bs: Array<Record<string, any>>, field: string): number[] =>
+    bs
+      .map((b) => b[field])
+      .filter((v) => v != null && !Number.isNaN(Number(v)))
+      .map(Number);
+  const min = (values: number[]): number | null =>
+    values.length ? Math.min(...values) : null;
+  const avg = (values: number[]): number | null =>
+    values.length
+      ? Math.round((values.reduce((s, v) => s + v, 0) / values.length) * 10) /
+        10
+      : null;
+  const cell = (values: number[]): string => {
+    const lo = min(values);
+    const hi = avg(values);
+    return lo == null
+      ? "—"
+      : hi == null || hi === lo
+        ? `${fmtNum(lo)}`
+        : `${fmtNum(lo)} → ${fmtNum(hi)}`;
+  };
+
+  const rows = ordered
+    .map(([label, bs]) => {
+      const size = bs.length;
+      const enlace = bs.filter((b) => b.rssi != null || b.snr != null).length;
+      const rssi = nums(bs, "rssi");
+      const snr = nums(bs, "snr");
+      const loss = nums(bs, "packetLossPct");
+      const uplink = nums(bs, "totalPackets");
+      const confirm = nums(bs, "successfulPackets");
+      const sumU = uplink.reduce((s, v) => s + v, 0);
+      const sumC = confirm.reduce((s, v) => s + v, 0);
+      const acuses = sumU > 0 ? Math.round((sumC / sumU) * 1000) / 10 : null;
+      const paqMuestra = uplink.length
+        ? Math.round((sumU / uplink.length) * 10) / 10
+        : null;
+
+      let worstLv: LoraQualityLevel | null = null;
+      for (const b of bs) {
+        const lv = levelOf({
+          rssi: b.rssi == null ? null : Number(b.rssi),
+          snr: b.snr == null ? null : Number(b.snr),
+          packetLossPct:
+            b.packetLossPct == null ? null : Number(b.packetLossPct),
+        });
+        worstLv = worstLv === null ? lv : worseOf(worstLv, lv);
+      }
+      const lvColor = worstLv ? LORA_LEVEL_COLOR[worstLv] : "#9ca3af";
+      const lvLabel = worstLv ? LORA_LEVEL_LABEL[worstLv] : "—";
+
+      return `<tr>
+        <td style="font-weight:bold">${esc(label)}</td>
+        <td>${size}</td>
+        <td>${enlace}/${size}</td>
+        <td>${cell(rssi)}</td>
+        <td>${cell(snr)}</td>
+        <td>${avg(loss) == null ? "—" : `${fmtNum(avg(loss))}%`}</td>
+        <td>${acuses == null ? "—" : `${fmtNum(acuses)}%`}</td>
+        <td>${paqMuestra == null ? "—" : fmtNum(paqMuestra)}</td>
+        <td><span style="color:${lvColor};font-weight:bold">${esc(lvLabel)}</span></td>
+      </tr>`;
+    })
+    .join("");
+
+  return `<table>
+    <thead><tr><th>Medida</th><th>Muestras</th><th>Con enlace</th><th>RSSI mín→med (dBm)</th><th>SNR mín→med (dB)</th><th>Pérdida media</th><th>Acuses</th><th>Pkts/muestra</th><th>Nivel</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+// ---------- Apartado "Baremo aplicado" ----------
+
+function baremoSection(): string {
+  const NC = (n: number): string => fmtNum(n);
+  const floors = (nums: number[]): string[] => [
+    ...nums.map((n) => `≥ ${NC(n)}`),
+    `< ${NC(nums[nums.length - 1])}`,
+  ];
+
+  const signalTable = table(
+    ["Métrica", "Excelente", "Buena", "Aceptable", "Débil", "Crítica"],
+    [
+      ["RSSI (dBm)", ...floors([-70, -85, -100, -115])],
+      ["SNR (dB)", ...floors([10, 5, 0, -5])],
+      ["Margen LoRa (dB)", ...floors([10, 5, 0, -5])],
+    ]
+  );
+
+  const sfKeys = ["SF7", "SF8", "SF9", "SF10", "SF11", "SF12"];
+  const sfFloorTable = table(
+    ["SF", ...sfKeys],
+    [["Piso SNR (dB)", ...sfKeys.map((k) => NC(SNR_FLOOR_BY_SF[k]))]]
+  );
+
+  const packetTable = table(
+    [
+      "Nivel",
+      "Excelente",
+      "Muy buena",
+      "Buena",
+      "Aceptable",
+      "Débil",
+      "Crítica",
+    ],
+    [
+      [
+        "Pérdida de paquetes (%)",
+        `≤ ${NC(LORA_BAREMO.packetLoss.excelentePct)}%`,
+        `≤ ${NC(LORA_BAREMO.packetLoss.muyBuenaPct)}%`,
+        `≤ ${NC(LORA_BAREMO.packetLoss.buenaPct)}%`,
+        `≤ ${NC(LORA_BAREMO.packetLoss.aceptablePct)}%`,
+        `≤ ${NC(LORA_BAREMO.packetLoss.debilPct)}%`,
+        `> ${NC(LORA_BAREMO.packetLoss.debilPct)}%`,
+      ],
+    ]
+  );
+
+  const en = LORA_BAREMO.noise.excelente,
+    bn = LORA_BAREMO.noise.buena,
+    an = LORA_BAREMO.noise.aceptable,
+    dn = LORA_BAREMO.noise.debil;
+  const noiseTable = table(
+    ["Métrica", "Excelente", "Buena", "Aceptable", "Débil", "Crítica"],
+    [
+      [
+        "Elevación del scan (dB)",
+        `≤ ${NC(en)}`,
+        `≤ ${NC(bn)}`,
+        `≤ ${NC(an)}`,
+        `≤ ${NC(dn)}`,
+        `> ${NC(dn)}`,
+      ],
+    ]
+  );
+
+  const checksTable = table(
+    ["Comprobación", "Conforme", "En el límite", "No conforme"],
+    [
+      [
+        "Tasa de confirmación (ACK)",
+        `≥ ${NC(LORA_BAREMO.ackRate.buena)}%`,
+        `${NC(LORA_BAREMO.ackRate.aceptable)}–${NC(LORA_BAREMO.ackRate.buena)}%`,
+        `< ${NC(LORA_BAREMO.ackRate.aceptable)}%`,
+      ],
+      [
+        "Coherencia |RSSI − RSSI senoidal|",
+        `≤ ${NC(LORA_BAREMO.rssis.consistente)} dB`,
+        `≤ ${NC(LORA_BAREMO.rssis.sospechosa)} dB`,
+        `> ${NC(LORA_BAREMO.rssis.sospechosa)} dB`,
+      ],
+      [
+        "Potencia de transmisión",
+        `≥ ${NC(LORA_BAREMO.txPower.adecuada)} dBm`,
+        "0–10 dBm",
+        "≤ 0 dBm",
+      ],
+    ]
+  );
+
+  const statusTable = table(
+    ["Estado", "Niveles"],
+    [
+      ["Conforme (PASS)", "Excelente · Buena (Muy buena en pérdida)"],
+      ["En el límite (WARNING)", "Aceptable"],
+      ["No conforme (FAIL)", "Débil · Crítica"],
+      ["Sin dato (UNKNOWN)", "Métrica sin valor capturado"],
+    ]
+  );
+
+  const chips = `<div class="levels">${LORA_LEVELS.map(
+    (lvl) =>
+      `<div class="levels-item"><span class="swatch" style="background:${lvl.color}"></span>${esc(lvl.label)}</div>`
+  ).join("")}</div>`;
+
+  const pC = LORA_BAREMO.packetConfidence;
+  return `<section class="break"><h2 id="sec-baremo"><span class="secnum">2</span> Baremo aplicado</h2>
+    <p class="muted">Umbrales utilizados para clasificar cada muestra y cada criterio de este informe. El nivel de una muestra es el peor entre RSSI, SNR, pérdida de paquetes y margen; si la señal es Abnormal, faltan RSSI/SNR o la pérdida es del 100 %, la muestra se clasifica como «Sin cobertura».</p>
+
+    <h3>Escala de niveles</h3>
+    ${chips}
+
+    <h3>Señal: RSSI, SNR y margen</h3>
+    <p class="muted">El margen LoRa real es margen = SNR − piso teórico del SF usado, porque LoRa demodula por debajo del ruido.</p>
+    ${signalTable}
+    ${sfFloorTable}
+    <p class="muted">Ejemplo: SF10 con SNR −10 dB → margen −10 − (−15) = 5 dB ⇒ Buena.</p>
+
+    <h3>Paquetes</h3>
+    ${packetTable}
+    <p class="muted">LoRa tolera más pérdidas que Wi-Fi; los umbrales se ajustan a la operación real.</p>
+
+    <h3>Ruido</h3>
+    ${noiseTable}
+    <p class="muted">Elevación del scan actual respecto a la media ponderada de cada banda del espectro SGM.</p>
+
+    <h3>Calidad de datos</h3>
+    ${checksTable}
+    <p class="muted">Confianza de la muestra según paquetes totales: &lt; ${NC(pC.low)} baja · ${NC(pC.low)}–${NC(pC.preliminary)} preliminar · ≥ ${NC(pC.preliminary)} alta.</p>
+
+    <h3>De nivel a estado</h3>
+    ${statusTable}
+  </section>`;
+}
+
 export interface LoraReportData {
   header: {
     name?: string | null;
@@ -860,11 +1130,133 @@ export interface LoraReportData {
   antenna?: { lat: number; lon: number } | null;
 }
 
-export function renderLoraReportHtml(data: LoraReportData): string {
+// ---------- Índice ----------
+
+type TocEntry = {
+  id: string;
+  number: string;
+  label: string;
+  level: 0 | 1;
+  conditional?: boolean;
+};
+
+const TOC_ENTRIES: TocEntry[] = [
+  { id: "sec-datos", number: "1", label: "Datos generales", level: 0 },
+  { id: "sec-baremo", number: "2", label: "Baremo aplicado", level: 0 },
+  { id: "sec-vista-general", number: "3", label: "Vista general", level: 0 },
+  {
+    id: "sec-cobertura",
+    number: "4",
+    label: "Cobertura sobre el plano",
+    level: 0,
+    conditional: true,
+  },
+  { id: "sec-graficas", number: "5", label: "Gráficas del enlace", level: 0 },
+  { id: "sec-medidas", number: "6", label: "Medidas LoRa", level: 0 },
+  { id: "sec-ruido", number: "7", label: "Ruido", level: 0 },
+  { id: "sec-analisis", number: "8", label: "Análisis del enlace", level: 0 },
+  {
+    id: "sec-analisis-detalle",
+    number: "8.1",
+    label: "Detalle por medida y ruido",
+    level: 1,
+  },
+  {
+    id: "sec-analisis-coherencia",
+    number: "8.2",
+    label: "Coherencia cruzada",
+    level: 1,
+  },
+  {
+    id: "sec-recomendaciones",
+    number: "9",
+    label: "Recomendaciones",
+    level: 0,
+  },
+];
+
+const nodeRequire = createRequire(__filename);
+
+function buildTocTable(
+  pageMap: Record<string, number>,
+  showCoverageSection: boolean
+): string {
+  const rows = TOC_ENTRIES.filter((e) => !e.conditional || showCoverageSection)
+    .map((e) => {
+      const page = pageMap[e.id] ?? "–";
+      const cls = e.level === 0 ? "toc-l1" : "toc-l2";
+      return `<tr class="${cls}"><td><a href="#${e.id}"><span class="n">${e.number}</span>${e.label}</a></td><td class="toc-dots"></td><td class="toc-page">${page}</td></tr>`;
+    })
+    .join("");
+  return `<div class="toc">
+    <h2>Índice</h2>
+    <table><tbody>${rows}</tbody></table>
+  </div>`;
+}
+
+export function renderLoraReportHtml(
+  data: LoraReportData,
+  pageMap: Record<string, number> = {}
+): string {
   const header = data.header ?? {};
   const showCoverageSection = Boolean(data.floorPlan?.image);
 
-  const qualityCell = (s: Record<string, any>): string => {
+  const heatmapsHtml = planHeatmapsHtml(
+    data.measures ?? [],
+    data.noise ?? [],
+    data.floorPlan,
+    data.heatmapRadius,
+    data.antenna
+  );
+
+  const blocks = (data.measures ?? []).flatMap((m, index) =>
+    (Array.isArray(m.samples) ? m.samples : []).map((s, sampleIndex) => ({
+      role: sampleRoleText(s, sampleIndex),
+      totalPackets: s.uplinkPacket == null ? null : Number(s.uplinkPacket),
+      successfulPackets:
+        s.confirmPacket == null ? null : Number(s.confirmPacket),
+      rssi: s.rssi ?? null,
+      rssis: s.rssis ?? null,
+      snr: s.snr ?? null,
+      packetLossPct: s.packetLossPct ?? null,
+      txPower: s.txPower ?? null,
+      longitude: s.longitude ?? null,
+      latitude: s.latitude ?? null,
+      location: s.location ?? null,
+      sourceLabel: `Medida ${index + 1}`,
+    }))
+  );
+  const noiseEntries = (data.noise ?? []).flatMap((n, index) =>
+    (Array.isArray(n.entries) ? n.entries : []).map((e) => ({
+      ...e,
+      sourceLabel: `Ruido ${index + 1}`,
+    }))
+  );
+  const { evaluations, coherence } = analyzeLora(blocks, noiseEntries);
+  const summary = summarizeAnalysis(evaluations, blocks);
+  const [
+    overviewHtml,
+    chartsHtml,
+    detailHtml,
+    coherencePart,
+    recommendationsHtml,
+  ] = buildAnalysisParts(
+    blocks,
+    noiseEntries,
+    data.measures ?? [],
+    data.noise ?? [],
+    evaluations,
+    coherence,
+    summary,
+    data.header?.result ?? null
+  );
+
+  const coverSamples = (data.measures ?? []).flatMap((m) =>
+    Array.isArray(m.samples) ? m.samples : []
+  );
+  const coverMeasures = (data.measures ?? []).length;
+
+  const qualityCell = (s: Record<string, any>): TableCell => {
     const lv = levelOf({
       rssi:
         s.rssi == null || Number.isNaN(Number(s.rssi)) ? null : Number(s.rssi),
@@ -877,7 +1269,9 @@ export function renderLoraReportHtml(data: LoraReportData): string {
           : Number(s.packetLossPct),
     });
     const color = LORA_LEVEL_COLOR[lv];
-    return `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;background:${color};color:#fff;font-size:9px;font-weight:600;line-height:1.45;white-space:nowrap;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.25)"><span style="width:5px;height:5px;border-radius:99px;background:#fff;display:inline-block"></span>${esc(LORA_LEVEL_LABEL[lv])}</span>`;
+    return raw(
+      `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;background:${color};color:#fff;font-size:9px;font-weight:600;line-height:1.45;white-space:nowrap;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.25)"><span style="width:5px;height:5px;border-radius:99px;background:#fff;display:inline-block"></span>${esc(LORA_LEVEL_LABEL[lv])}</span>`
+    );
   };
 
   const measureHtml = (measure: Record<string, any>) => {
@@ -993,6 +1387,7 @@ export function renderLoraReportHtml(data: LoraReportData): string {
   section.break { page-break-before: always; }
   .card { border:1px solid #d1d5db; border-radius:6px; padding:8px; margin-bottom:10px; }
   .muted { color:#6b7280; }
+  .secnum { display:inline-block; background:#111827; color:#fff; border-radius:5px; font-size:11px; font-weight:700; padding:2px 9px; margin-right:9px; }
   .plchart { display:flex; flex-direction:column; gap:8px; margin:8px 0 4px; }
   .plrow { display:grid; grid-template-columns:minmax(54px, 70px) 1fr; gap:8px; align-items:center; }
   .plhead { display:flex; flex-direction:column; line-height:1.1; }
@@ -1001,8 +1396,9 @@ export function renderLoraReportHtml(data: LoraReportData): string {
   .pltrack { height:18px; background:#f3f4f6; border-radius:4px; overflow:hidden; }
   .pltrack > div { height:100%; border-radius:4px; }
   table { width:100%; border-collapse:collapse; margin:6px 0 10px; }
-  th { background:#f3f4f6; text-align:left; }
+  th { background:#1f2937; color:#fff; text-align:left; }
   th, td { border:1px solid #d1d5db; padding:3px 6px; font-size:9.5px; }
+  tbody tr:nth-child(even) { background:#f8fafc; }
   dl { display:grid; grid-template-columns: 140px 1fr; gap:2px 10px; margin:10px 0; }
   dt { font-weight:bold; }
   dd { margin:0; color:#374151; }
@@ -1011,6 +1407,10 @@ export function renderLoraReportHtml(data: LoraReportData): string {
   .cover .sub { font-size:16px; color:#374151; margin-bottom:40px; }
   .cover .meta { display:inline-block; text-align:left; margin-top:30px; font-size:12px; }
   .cover .meta div { margin:4px 0; }
+  .cover-kpis { display:flex; gap:12px; justify-content:center; margin-top:26px; flex-wrap:wrap; }
+  .ckpi { border:1px solid #e5e7eb; border-radius:10px; padding:10px 16px; min-width:100px; background:#f9fafb; }
+  .ckpi b { display:block; font-size:19px; color:#111827; }
+  .ckpi span { font-size:8.5px; color:#6b7280; text-transform:uppercase; letter-spacing:.05em; }
   .cover .result { margin-top:34px; font-size:16px; font-weight:bold; color:#111827; }
   .chartgrid { display:grid; grid-template-columns:1fr 1fr; gap:16px 22px; }
   .chartcell { min-width:0; }
@@ -1023,6 +1423,9 @@ export function renderLoraReportHtml(data: LoraReportData): string {
   .vb em { font-style:normal; font-size:9px; color:#111827; margin-bottom:3px; }
   .vb span { font-size:9px; color:#374151; margin-top:3px; }
   h3 { font-size:12.5px; margin:14px 0 6px; color:#111827; }
+  .levels { display:flex; flex-wrap:wrap; gap:6px 14px; margin:10px 0 2px; }
+  .levels-item { display:inline-flex; align-items:center; gap:5px; font-size:10px; color:#374151; }
+  .swatch { display:inline-block; width:11px; height:11px; border-radius:3px; border:1px solid rgba(0,0,0,.12); }
   .heatmap { max-width:100%; margin:8px 0; }
   .heatmap > img { max-width:100%; border:1px solid #d1d5db; border-radius:4px; }
   .heat-box { position:relative; width:100%; overflow:hidden; border-radius:4px; }
@@ -1042,11 +1445,19 @@ export function renderLoraReportHtml(data: LoraReportData): string {
   .hl-labels { display:flex; flex-wrap:wrap; gap:4px 14px; margin-top:14px; }
   .hl-lbl { display:inline-flex; align-items:center; gap:4px; font-size:9px; color:#374151; }
   .hl-lbl i { display:inline-block; width:12px; height:12px; border-radius:2px; border:1px solid rgba(0,0,0,.1); }
-  .toc { page-break-after: always; }
-  .toc h2 { margin-top:0; }
-  .toc ol { font-size:12px; line-height:1.9; }
-  .toc a { color:#2563eb; text-decoration:none; }
-  .toc ul { list-style:circle; margin:0 0 0 24px; font-size:10.5px; line-height:1.7; }
+  .toc { page-break-after: always; padding-top:40px; }
+  .toc h2 { font-size:22px; border:0; margin:0 0 18px; }
+  .toc table { width:100%; border-collapse:collapse; margin:0; }
+  .toc td { border:0 !important; padding:7px 2px; vertical-align:middle; }
+  .toc tbody tr:nth-child(even) { background:transparent; }
+  .toc a { text-decoration:none; }
+  .toc-l1 a { font-size:12.5px; font-weight:700; color:#111827; }
+  .toc-l2 td { padding-left:20px; }
+  .toc-l2 a { font-size:11px; font-weight:400; color:#374151; }
+  .toc .n { display:inline-block; min-width:26px; color:#2563eb; font-size:10px; font-weight:800; margin-right:4px; }
+  .toc-l2 .n { color:#94a3b8; font-weight:600; }
+  .toc-dots { min-width:30px; border-bottom:2px dotted #cbd5e1 !important; }
+  .toc-page { text-align:right; min-width:24px; font-size:12px; font-weight:700; color:#111827; font-variant-numeric:tabular-nums; }
 </style></head><body>
   <div class="cover">
     <h1>Informe de auditoría LoRa</h1>
@@ -1063,6 +1474,11 @@ export function renderLoraReportHtml(data: LoraReportData): string {
           : fmtDate(header.auditDate)
       }</div>
     </div>
+    <div class="cover-kpis">
+      <div class="ckpi"><b>${coverMeasures}</b><span>Medidas</span></div>
+      <div class="ckpi"><b>${coverSamples.length}</b><span>Muestras</span></div>
+      <div class="ckpi"><b>${summary.total}</b><span>Criterios</span></div>
+    </div>
     ${
       header.result
         ? `<div class="result">Resultado: ${esc(globalLabel(header.result))}</div>`
@@ -1071,31 +1487,9 @@ export function renderLoraReportHtml(data: LoraReportData): string {
     <p style="margin-top:60px;font-size:10px;color:#6b7280">Generado el ${new Date().toLocaleString("es-ES")}</p>
   </div>
 
-  <div class="toc">
-    <h2>Índice</h2>
-    <ol>
-      <li><a href="#sec-datos">Datos generales</a></li>
-      <li><a href="#sec-medidas">Medidas LoRa</a></li>
-      <li><a href="#sec-ruido">Ruido</a></li>
-      ${
-        showCoverageSection
-          ? '<li><a href="#sec-cobertura">Cobertura sobre el plano</a></li>'
-          : ""
-      }
-      <li><a href="#sec-analisis">Análisis del enlace</a>
-        <ul>
-          <li><a href="#sec-analisis-global">Resultado global</a></li>
-          <li><a href="#sec-analisis-categorias">Resumen por categoría</a></li>
-          <li><a href="#sec-analisis-detalle">Detalle por medida y ruido</a></li>
-          <li><a href="#sec-analisis-coherencia">Coherencia cruzada</a></li>
-          <li><a href="#sec-analisis-recomendaciones">Recomendaciones</a></li>
-          <li><a href="#sec-analisis-graficas">Gráficas</a></li>
-        </ul>
-      </li>
-    </ol>
-  </div>
+  ${buildTocTable(pageMap, showCoverageSection)}
 
-  <h2 id="sec-datos">Datos generales</h2>
+  <section class="break"><h2 id="sec-datos"><span class="secnum">1</span> Datos generales</h2>
   <dl>
     <dt>Nombre</dt><dd>${esc(header.name) || "—"}</dd>
     <dt>Código</dt><dd>${esc(header.code) || "—"}</dd>
@@ -1118,50 +1512,102 @@ export function renderLoraReportHtml(data: LoraReportData): string {
       ? `<p style="margin-top:10px"><b>Descripción:</b> ${esc(header.description)}</p>`
       : ""
   }
+  </section>
 
-  <section><h2 id="sec-medidas">Medidas LoRa (${(data.measures ?? []).length})</h2>${measuresHtml}</section>
+  ${baremoSection()}
 
-  <section class="break"><h2 id="sec-ruido">Ruido (${(data.noise ?? []).length})</h2>${noiseHtml}</section>
+  ${overviewHtml}
 
-  ${planHeatmapsHtml(data.measures ?? [], data.noise ?? [], data.floorPlan, data.heatmapRadius, data.antenna)}
+  ${heatmapsHtml}
 
-  ${(() => {
-    const blocks = (data.measures ?? []).flatMap((m, index) =>
-      (Array.isArray(m.samples) ? m.samples : []).map((s, sampleIndex) => ({
-        role: sampleRoleText(s, sampleIndex),
-        totalPackets: s.uplinkPacket == null ? null : Number(s.uplinkPacket),
-        successfulPackets:
-          s.confirmPacket == null ? null : Number(s.confirmPacket),
-        rssi: s.rssi ?? null,
-        rssis: s.rssis ?? null,
-        snr: s.snr ?? null,
-        packetLossPct: s.packetLossPct ?? null,
-        txPower: s.txPower ?? null,
-        longitude: s.longitude ?? null,
-        latitude: s.latitude ?? null,
-        location: s.location ?? null,
-        sourceLabel: `Medida ${index + 1}`,
-      }))
-    );
-    const noiseEntries = (data.noise ?? []).flatMap((n, index) =>
-      (Array.isArray(n.entries) ? n.entries : []).map((e) => ({
-        ...e,
-        sourceLabel: `Ruido ${index + 1}`,
-      }))
-    );
-    return analysisHtml(
-      blocks,
-      noiseEntries,
-      data.measures ?? [],
-      data.noise ?? [],
-      data.header?.result ?? null
-    );
-  })()}
+  ${chartsHtml}
+
+  <section class="break"><h2 id="sec-medidas"><span class="secnum">6</span> Medidas LoRa (${(data.measures ?? []).length})</h2>${measuresHtml}</section>
+
+  <section class="break"><h2 id="sec-ruido"><span class="secnum">7</span> Ruido (${(data.noise ?? []).length})</h2>${noiseHtml}</section>
+
+  <section class="break"><h2 id="sec-analisis"><span class="secnum">8</span> Análisis del enlace</h2>
+  ${detailHtml}
+
+  ${coherencePart}
+  </section>
+
+  ${recommendationsHtml}
 </body></html>`;
 }
 
 export async function renderLoraPdf(data: LoraReportData): Promise<Buffer> {
-  return renderPdf(renderLoraReportHtml(data), {
-    footerLabel: "Informe de auditoría LoRa",
-  });
+  const options = { footerLabel: "Informe de auditoría LoRa" };
+  // Doble render: 1ª pasada sin números (para localizar con pdfjs-dist la
+  // página real de cada apartado) y 2ª pasada inyectando las páginas en el índice.
+  const pass1 = await renderPdf(renderLoraReportHtml(data), options);
+  const pageMap = await extractHeadingPages(pass1);
+  return renderPdf(renderLoraReportHtml(data, pageMap), options);
+}
+
+// Cabeceras buscadas en el PDF para conocer la página de cada apartado.
+const TOC_HEADING_PATTERNS: Record<string, RegExp> = {
+  "sec-datos": /^(?:1\s+)?Datos generales$/,
+  "sec-baremo": /^(?:2\s+)?Baremo aplicado$/,
+  "sec-vista-general": /^(?:3\s+)?Vista general$/,
+  "sec-cobertura": /^(?:4\s+)?Cobertura sobre el plano$/,
+  "sec-graficas": /^(?:5\s+)?Gráficas del enlace$/,
+  "sec-medidas": /^(?:6\s+)?Medidas LoRa \(\d+\)$/,
+  "sec-ruido": /^(?:7\s+)?Ruido \(\d+\)$/,
+  "sec-analisis": /^(?:8\s+)?Análisis del enlace$/,
+  "sec-analisis-detalle": /^(?:8\.1\s+)?Detalle por medida y ruido$/,
+  "sec-analisis-coherencia": /^(?:8\.2\s+)?Coherencia cruzada$/,
+  "sec-recomendaciones": /^(?:9\s+)?Recomendaciones$/,
+};
+
+/** Recompone líneas de texto del PDF agrupando los fragmentos por su posición Y. */
+function textLines(items: any[]): string[] {
+  const rows = new Map<number, Array<{ str: string; x: number; w: number }>>();
+  for (const it of items) {
+    if (typeof it?.str !== "string" || !Array.isArray(it.transform)) continue;
+    const y = Math.round(it.transform[5]);
+    const list = rows.get(y) ?? [];
+    list.push({ str: it.str, x: it.transform[4], w: Number(it.width ?? 0) });
+    rows.set(y, list);
+  }
+  const lines: string[] = [];
+  for (const list of rows.values()) {
+    list.sort((a, b) => a.x - b.x);
+    let line = "";
+    let prevEnd = -Infinity;
+    for (const t of list) {
+      line += t.x > prevEnd + 1 && line !== "" ? " " + t.str : t.str;
+      prevEnd = Math.max(prevEnd, t.x + t.w);
+    }
+    lines.push(line.replace(/\s+/g, " ").trim());
+  }
+  return lines;
+}
+
+/** Localiza, con pdfjs-dist, la página física donde cae cada apartado. */
+async function extractHeadingPages(
+  pdf: Buffer
+): Promise<Record<string, number>> {
+  const pdfjs = nodeRequire("pdfjs-dist/legacy/build/pdf.js");
+  const map: Record<string, number> = {};
+  const pending = new Set(Object.keys(TOC_HEADING_PATTERNS));
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(pdf) }).promise;
+  try {
+    // Las páginas 1 (portada) y 2 (índice) contienen las mismas etiquetas;
+    // la búsqueda empieza en la página 3.
+    for (let pageNo = 3; pageNo <= doc.numPages && pending.size > 0; pageNo++) {
+      const page = await doc.getPage(pageNo);
+      const content = await page.getTextContent();
+      const lines = textLines(content.items);
+      for (const id of Array.from(pending)) {
+        if (lines.some((line) => TOC_HEADING_PATTERNS[id].test(line))) {
+          map[id] = pageNo;
+          pending.delete(id);
+        }
+      }
+    }
+  } finally {
+    await doc.destroy();
+  }
+  return map;
 }

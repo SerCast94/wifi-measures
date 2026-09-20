@@ -115,7 +115,9 @@ export class ExteriorHeatmapService {
     }
     const points = await this.buildPointsFromAudit(auditId);
     const name = `Mapa exterior auditoría ${auditId}`;
-    const existing = await client.exteriorHeatmap.findFirst({ where: { auditId } });
+    const existing = await client.exteriorHeatmap.findFirst({
+      where: { auditId },
+    });
     const item = existing
       ? await client.exteriorHeatmap.update({
           where: { id: existing.id },

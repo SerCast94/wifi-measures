@@ -6,7 +6,14 @@
  * servicio de evaluación como desde el render del informe PDF.
  */
 
-import { LORA_THRESHOLDS, rssiLevel, snrLevel } from "./lora-baremo";
+import {
+  isNoCoverageSample,
+  LORA_THRESHOLDS,
+  rssiLevel,
+  snrLevel,
+  SNR_FLOOR_BY_SF,
+  sfFloorKey,
+} from "./lora-baremo";
 
 export type EvalStatus = "PASS" | "WARNING" | "FAIL" | "UNKNOWN";
 
@@ -24,6 +31,7 @@ export interface EvaluatedMetric {
 
 export interface LoraAnalysisBlock {
   role?: string | null;
+  signal?: string | null;
   totalPackets?: number | null;
   successfulPackets?: number | null;
   rssi?: number | null;
@@ -79,10 +87,11 @@ export const LORA_BAREMO = {
   },
   packetLoss: {
     // Pérdida de paquetes (%). El límite marca el máx. aceptado por nivel.
+    // LoRa tolera más pérdidas que Wi-Fi; ajustados a realidad operativa.
     excelentePct: 2,
     muyBuenaPct: 5,
-    buenaPct: 10,
-    aceptablePct: 20,
+    buenaPct: 15,
+    aceptablePct: 25,
     debilPct: 40,
   },
   packetConfidence: {
@@ -108,7 +117,8 @@ export const LORA_BAREMO = {
     "[940-960]": "SGM 940-960",
   },
   margin: {
-    // Margen radio = RSSI - ruido (dB). Ruido medido en dBm (más negativo).
+    // Margen LoRa real = SNR medido - piso teórico del SF (dB).
+    // LoRa demodula bajo el ruido; el margen RSSI-ruido NO es representativo.
     excelente: 10,
     buena: 5,
     aceptable: 0,
@@ -315,18 +325,15 @@ export function evaluatePacketLoss(
 
 export function evaluateMargin(
   block: LoraAnalysisBlock,
-  noiseFloor: number | null,
+  _noiseFloor: number | null,
   role?: string
 ): EvaluatedMetric {
   const origin = composeOrigin(block.sourceLabel, role);
-  const rssi =
-    block.rssi === null || block.rssi === undefined ? null : Number(block.rssi);
-  if (
-    rssi === null ||
-    Number.isNaN(rssi) ||
-    noiseFloor === null ||
-    Number.isNaN(noiseFloor)
-  ) {
+  const snr =
+    block.snr === null || block.snr === undefined ? null : Number(block.snr);
+  const sfValue = (block as any).sf ?? null;
+
+  if (snr === null || Number.isNaN(snr)) {
     return {
       category: "MARGEN",
       metric: "MARGIN",
@@ -336,10 +343,13 @@ export function evaluateMargin(
       label: null,
       sourceLabel: block.sourceLabel ?? null,
       elementRole: role ?? null,
-      message: `${origin}Margen radio (RSSI − ruido) sin dato suficiente.`,
+      message: `${origin}Margen LoRa (SNR - piso SF) sin dato: SNR no disponible.`,
     };
   }
-  const margin = rssi - noiseFloor;
+
+  const sfKey = sfFloorKey(sfValue);
+  const floor = sfKey ? SNR_FLOOR_BY_SF[sfKey] ?? -20 : -20;
+  const margin = snr - floor;
   const level = marginLevel(margin);
   return {
     category: "MARGEN",
@@ -350,7 +360,7 @@ export function evaluateMargin(
     label: level,
     sourceLabel: block.sourceLabel ?? null,
     elementRole: role ?? null,
-    message: `${origin}Margen radio ${margin.toFixed(1)} dB (RSSI ${rssi.toFixed(0)} − ruido ${noiseFloor.toFixed(0)} dBm) → ${level}.`,
+    message: `${origin}Margen LoRa ${margin.toFixed(1)} dB (SNR ${snr.toFixed(1)} − piso ${sfKey ?? "?"} ${floor} dB) → ${level}.`,
   };
 }
 
@@ -488,6 +498,59 @@ export function noiseCategoryLabel(frequency: number): string {
   return `${frequency.toFixed(0)} MHz`;
 }
 
+/**
+ * Agrega el ruido por banda: varios scans (registros) repiten las mismas
+ * frecuencias/bandas; se queda con la peor elevación de cada banda en vez de
+ * emitir una fila por entrada (evita duplicidades).
+ */
+export function evaluateNoiseBand(
+  band: string,
+  entries: LoraNoiseRecord[]
+): EvaluatedMetric {
+  const ranked = entries
+    .map((entry) => {
+      const current = numOf(entry.currentScan);
+      const weighted = numOf(entry.weightedAverageScan);
+      return {
+        entry,
+        current,
+        weighted,
+        delta: current !== null && weighted !== null ? current - weighted : null,
+      };
+    })
+    .filter((r) => r.current !== null && r.weighted !== null);
+
+  if (ranked.length === 0) {
+    return {
+      category: "RUIDO",
+      metric: "NOISE_DELTA",
+      value: null,
+      unit: "dBm",
+      status: "UNKNOWN",
+      label: null,
+      sourceLabel: band,
+      elementRole: null,
+      message: `${band}: ruido de scan no disponible (falta scan actual o media ponderada).`,
+    };
+  }
+
+  ranked.sort((a, b) => (b.delta as number) - (a.delta as number));
+  const worst = ranked[0];
+  const delta = worst.delta as number;
+  const level = noiseDeltaLevel(delta);
+  return {
+    category: "RUIDO",
+    metric: "NOISE_DELTA",
+    value: Math.round(delta * 100) / 100,
+    unit: "dB",
+    status: levelToStatus(level, DELTA_OK, DELTA_WARN),
+    label: level,
+    sourceLabel: band,
+    elementRole: null,
+    message: `${band}: ruido actual ${worst.current?.toFixed(0)} dBm vs media ${worst.weighted?.toFixed(0)} dBm (Δ ${delta.toFixed(1)} dB, peor de ${ranked.length} scan${ranked.length === 1 ? "" : "s"}) → ${level}.`,
+  };
+}
+
 export function evaluateNoiseEntry(entry: LoraNoiseRecord): EvaluatedMetric {
   const current =
     entry.currentScan === null || entry.currentScan === undefined
@@ -555,7 +618,7 @@ export function highestNoiseFloor(entries: LoraNoiseRecord[]): number | null {
 
 export function coherenceAnalysis(
   block: LoraAnalysisBlock,
-  noiseFloor: number | null
+  _noiseFloor: number | null
 ): CoherenceResult {
   const rssi =
     block.rssi === null || block.rssi === undefined ? null : Number(block.rssi);
@@ -569,6 +632,7 @@ export function coherenceAnalysis(
     block.totalPackets === null || block.totalPackets === undefined
       ? null
       : Number(block.totalPackets);
+  const sf = (block as any).sf ?? null;
 
   const rssiOk =
     rssi !== null && !Number.isNaN(rssi) && rssi >= LORA_BAREMO.rssi.buena;
@@ -578,10 +642,14 @@ export function coherenceAnalysis(
     lossPct !== null &&
     !Number.isNaN(lossPct) &&
     lossPct <= LORA_BAREMO.packetLoss.buenaPct;
+
+  // Margen LoRa real = SNR - piso teórico del SF
+  const sfKey = sfFloorKey(sf);
+  const floor = sfKey ? SNR_FLOOR_BY_SF[sfKey] ?? -20 : -20;
+  const snrMargin = snr !== null && !Number.isNaN(snr) ? snr - floor : null;
   const marginOk =
-    rssi !== null &&
-    noiseFloor !== null &&
-    rssi - noiseFloor >= LORA_BAREMO.margin.aceptable;
+    snrMargin !== null && snrMargin >= LORA_BAREMO.margin.aceptable;
+
   const hasSample =
     totalPackets !== null &&
     !Number.isNaN(totalPackets) &&
@@ -687,8 +755,141 @@ export interface AnalysisSummary {
   recommendations: string[];
 }
 
+const MEASURE_RE = /^Medida\s+(\d+)/;
+const measureNumber = (label: string | null | undefined): number | null => {
+  const match = label ? String(label).match(MEASURE_RE) : null;
+  return match ? Number(match[1]) : null;
+};
+
+const valued = (values: Array<number | null | undefined>): number[] =>
+  values.filter((v): v is number => v != null && Number.isFinite(Number(v)));
+
+const avgOf = (values: number[]): number | null =>
+  values.length
+    ? Math.round((values.reduce((s, v) => s + v, 0) / values.length) * 10) / 10
+    : null;
+
+const minOf = (values: number[]): number | null =>
+  values.length ? Math.min(...values) : null;
+
+interface MeasureSignalStats {
+  muestras: number;
+  rssiMin: number | null;
+  snrAvg: number | null;
+  lossAvg: number | null;
+  ackPct: number | null;
+  pktAvg: number | null;
+}
+
+/** Estadísticas de señal/paquetes promediadas por medida. */
+function measureStats(blocks: LoraAnalysisBlock[]): MeasureSignalStats {
+  const rssi = valued(blocks.map((b) => b.rssi));
+  const snr = valued(blocks.map((b) => b.snr));
+  const loss = valued(blocks.map((b) => b.packetLossPct));
+  const total = valued(blocks.map((b) => b.totalPackets));
+  const ok = valued(blocks.map((b) => b.successfulPackets));
+  const sumTot = total.reduce((s, v) => s + v, 0);
+  const sumOk = ok.reduce((s, v) => s + v, 0);
+  return {
+    muestras: blocks.length,
+    rssiMin: minOf(rssi),
+    snrAvg: avgOf(snr),
+    lossAvg: avgOf(loss),
+    ackPct: sumTot > 0 ? Math.round((sumOk / sumTot) * 1000) / 10 : null,
+    pktAvg:
+      total.length > 0 ? Math.round((sumTot / total.length) * 10) / 10 : null,
+  };
+}
+
+const METRIC_SHORT_LABEL: Record<string, string> = {
+  RSSI: "RSSI",
+  SNR: "SNR",
+  PACKET_LOSS: "pérdida de paquetes",
+  ACK_RATE: "acuses",
+  MARGIN: "margen",
+  COHERENCIA: "coherencia cruzada",
+  RSSI_SENOIDAL: "RSSI senoidal",
+};
+
+/** Recomendaciones por medida: una por medida afectada, no por muestra. */
+function measureRecommendations(
+  evaluations: EvaluatedMetric[],
+  blocks: LoraAnalysisBlock[]
+): string[] {
+  const byMeasure = new Map<string, EvaluatedMetric[]>();
+  for (const e of evaluations) {
+    if (!e.sourceLabel || measureNumber(e.sourceLabel) === null) continue;
+    if (!byMeasure.has(e.sourceLabel)) byMeasure.set(e.sourceLabel, []);
+    byMeasure.get(e.sourceLabel)!.push(e);
+  }
+
+  const ordered = [...byMeasure.entries()].sort(
+    ([a], [b]) => (measureNumber(a) ?? 0) - (measureNumber(b) ?? 0)
+  );
+
+  const recommendations: string[] = [];
+  for (const [sourceLabel, evals] of ordered) {
+    const fails = evals.filter((e) => e.status === "FAIL");
+    if (fails.length === 0) continue;
+
+    const muestrasSet = new Set(
+      evals.map((e) => e.elementRole).filter((r): r is string => Boolean(r))
+    );
+    const muestras =
+      muestrasSet.size > 0
+        ? muestrasSet.size
+        : fails.find((e) => e.metric === "COBERTURA")?.value ?? fails.length;
+
+    const coverage = fails.find((e) => e.metric === "COBERTURA");
+    if (coverage) {
+      recommendations.push(
+        `${sourceLabel}: sin cobertura en ${coverage.value ?? muestras} muestra${coverage.value === 1 ? "" : "s"}. Verifica que el dispositivo transmite y el gateway recibe en esa ubicación y repite la medición.`
+      );
+      continue;
+    }
+
+    const stats = measureStats(
+      blocks.filter((b) => (b.sourceLabel ?? null) === sourceLabel)
+    );
+    const detail: string[] = [];
+    if (stats.rssiMin != null) detail.push(`RSSI ≈ ${stats.rssiMin} dBm`);
+    if (stats.snrAvg != null) detail.push(`SNR ≈ ${stats.snrAvg} dB`);
+    if (stats.lossAvg != null) detail.push(`pérdida media ${stats.lossAvg}%`);
+    if (stats.ackPct != null) detail.push(`acuses ${stats.ackPct}%`);
+    const metrics = Array.from(
+      new Set(fails.map((e) => METRIC_SHORT_LABEL[e.metric] ?? e.metric))
+    ).join(", ");
+
+    // Solo señal débil (sin pérdidas ni fallos de paquetes): no se degradó la
+    // entrega, pero el margen de radio es precario.
+    const radioOnly = fails.every((e) =>
+      ["RSSI", "SNR", "MARGIN", "RSSI_SENOIDAL", "COHERENCIA"].includes(
+        e.metric
+      )
+    );
+    const noPacketLoss =
+      stats.lossAvg != null && stats.lossAvg < 2 &&
+      stats.ackPct != null && stats.ackPct >= 99;
+    const basis = detail.length > 0 ? detail.join(", ") : metrics;
+
+    let message =
+      radioOnly && noPacketLoss && stats.rssiMin != null
+        ? `${sourceLabel}: señal débil en ${muestras} muestra${muestras === 1 ? "" : "s"} (${basis}) sin pérdidas registradas; el enlace entrega pero es frágil, vigila la cobertura y refuerza el punto si degrada.`
+        : `${sourceLabel}: enlace degradado en ${muestras} muestra${muestras === 1 ? "" : "s"} (${basis}); reubica o refuerza el nodo y revisa antenas/SF antes de validar.`;
+    if (
+      stats.pktAvg != null &&
+      stats.pktAvg < LORA_BAREMO.packetConfidence.low
+    ) {
+      message += ` Muestras reducidas (media ${stats.pktAvg} paquete${stats.pktAvg === 1 ? "" : "s"}/muestra); repite con ≥${LORA_BAREMO.packetConfidence.low} paquetes para confirmar.`;
+    }
+    recommendations.push(message);
+  }
+  return recommendations;
+}
+
 export function summarizeAnalysis(
-  evaluations: EvaluatedMetric[]
+  evaluations: EvaluatedMetric[],
+  blocks: LoraAnalysisBlock[] = []
 ): AnalysisSummary {
   const byStatus: Record<EvalStatus, number> = {
     PASS: 0,
@@ -737,21 +938,16 @@ export function summarizeAnalysis(
     );
   }
 
-  const recommendations: string[] = [];
-  const worst = evaluations.filter((e) => e.status === "FAIL");
-  const warns = evaluations.filter((e) => e.status === "WARNING");
-  const coherenceFails = evaluations.filter(
-    (e) => e.metric === "COHERENCIA" && e.status === "FAIL"
-  );
-  for (const c of coherenceFails) recommendations.push(c.message || "");
-  if (worst.length > 0) {
+  const recommendations: string[] = measureRecommendations(evaluations, blocks);
+  const warns = evaluations.filter((e) => e.status === "WARNING").length;
+  if (warns > 0) {
     recommendations.push(
-      `Corrige las ${worst.length} condición(es) no conforme(s) señaladas en el análisis (RSSI/SNR/pérdidas/margen/ruido).`
+      `Revisa las ${warns} condición(es) en el límite para evitar degradación operativa.`
     );
   }
-  if (warns.length > 0) {
+  if (byStatus.FAIL > 0 && recommendations.length === 0) {
     recommendations.push(
-      `Revisa las ${warns.length} condición(es) en el límite para evitar degradación operativa.`
+      `Corrige las ${byStatus.FAIL} condición(es) no conforme(s) señaladas en el análisis (RSSI/SNR/pérdidas/margen/ruido).`
     );
   }
   if (recommendations.length === 0 && meaningful > 0) {
@@ -772,6 +968,56 @@ export function summarizeAnalysis(
 
 // ---------- Orquestador ----------
 
+const blockWithoutCoverage = (block: LoraAnalysisBlock): boolean =>
+  isNoCoverageSample({
+    rssi: block.rssi,
+    snr: block.snr,
+    signal: block.signal,
+    packetLossPct: block.packetLossPct,
+  });
+
+/**
+ * Agrega una medida 100 % sin cobertura: una única condición COBERTURA por
+ * medida (con el número de muestras afectadas) en lugar de una fila por
+ * muestra del mismo hecho.
+ */
+function evaluateNoCoverage(
+  sourceLabel: string | null,
+  blocks: LoraAnalysisBlock[]
+): EvaluatedMetric {
+  const count = blocks.length;
+  const allAbnormal = blocks.every(
+    (b) => typeof b.signal === "string" && /abnormal/i.test(b.signal)
+  );
+  const allLost = blocks.every(
+    (b) => b.packetLossPct != null && Number(b.packetLossPct) >= 100
+  );
+  const allNoRadio = blocks.every(
+    (b) =>
+      (b.rssi == null || Number.isNaN(Number(b.rssi))) &&
+      (b.snr == null || Number.isNaN(Number(b.snr)))
+  );
+  const reason = allAbnormal
+    ? "señal Abnormal"
+    : allLost
+      ? "100 % de pérdida"
+      : allNoRadio
+        ? "sin datos de radio válidos"
+        : "sin enlace";
+  const origin = sourceLabel ? `${sourceLabel}: ` : "";
+  return {
+    category: "COBERTURA",
+    metric: "COBERTURA",
+    value: count,
+    unit: "muestras",
+    status: "FAIL",
+    label: "SIN_COBERTURA",
+    sourceLabel,
+    elementRole: null,
+    message: `${origin}Sin cobertura en ${count} ${count === 1 ? "muestra" : "muestras"} (${reason}): no se estableció enlace en el punto; verifica que el dispositivo transmite y el gateway recibe, y repite la medición.`,
+  };
+}
+
 export function analyzeLora(
   blocks: LoraAnalysisBlock[],
   noiseEntries: LoraNoiseRecord[]
@@ -780,45 +1026,83 @@ export function analyzeLora(
   const coherence: CoherenceResult[] = [];
   const noiseFloor = highestNoiseFloor(noiseEntries);
 
-  // Ruido por entrada de frecuencia
+  // Ruido agregado por banda (varios scans repiten las mismas frecuencias)
+  const noiseByBand = new Map<string, LoraNoiseRecord[]>();
   for (const entry of noiseEntries) {
-    evaluations.push(evaluateNoiseEntry(entry));
+    const freq = numOf(entry.frequency);
+    const label = freq !== null ? noiseCategoryLabel(freq) : "RUIDO";
+    if (!noiseByBand.has(label)) noiseByBand.set(label, []);
+    noiseByBand.get(label)!.push(entry);
+  }
+  for (const [band, entries] of noiseByBand) {
+    evaluations.push(evaluateNoiseBand(band, entries));
   }
 
-  // Métricas por bloque (Master/Slave)
+  // Métricas por bloque (Master/Slave), agrupadas por medida: si TODAS las
+  // muestras de una medida carecen de cobertura, se resume en una única
+  // condición COBERTURA por medida (evita una fila por muestra del mismo
+  // hecho).
+  const byMeasure = new Map<string | null, LoraAnalysisBlock[]>();
   for (const block of blocks) {
-    const label = block.role ? String(block.role) : undefined;
-    const origin = composeOrigin(block.sourceLabel, label);
-    evaluations.push(evaluateRssi(block.rssi, label, block.sourceLabel));
-    evaluations.push(evaluateSnr(block.snr, label, block.sourceLabel));
-    evaluations.push(evaluatePacketLoss(block, label));
-    evaluations.push(evaluateMargin(block, noiseFloor, label));
+    const key = block.sourceLabel ?? null;
+    if (!byMeasure.has(key)) byMeasure.set(key, []);
+    byMeasure.get(key)!.push(block);
+  }
 
-    const rssisMetric = evaluateRssisConsistency(block, label);
-    if (rssisMetric) evaluations.push(rssisMetric);
-    const ackMetric = evaluateAckRate(block, label);
-    if (ackMetric) evaluations.push(ackMetric);
-    const txMetric = evaluateTxPower(block, label);
-    if (txMetric) evaluations.push(txMetric);
+  for (const measureBlocks of byMeasure.values()) {
+    const entirelyWithoutCoverage =
+      measureBlocks.length > 0 &&
+      measureBlocks.every((block) => blockWithoutCoverage(block));
 
-    const coherenceResult = coherenceAnalysis(block, noiseFloor);
-    coherence.push({
-      ...coherenceResult,
-      sourceLabel: block.sourceLabel ?? null,
-      elementRole: label ?? null,
-    });
-    evaluations.push({
-      category: "COHERENCIA",
-      metric: "COHERENCIA",
-      value: null,
-      unit: null,
-      status: coherenceResult.status,
-      sourceLabel: block.sourceLabel ?? null,
-      elementRole: label ?? null,
-      label:
-        coherenceResult.case === "—" ? null : `Caso ${coherenceResult.case}`,
-      message: `${origin}${coherenceResult.title}. ${coherenceResult.message}`,
-    });
+    if (entirelyWithoutCoverage) {
+      evaluations.push(
+        evaluateNoCoverage(measureBlocks[0].sourceLabel ?? null, measureBlocks)
+      );
+      for (const block of measureBlocks) {
+        const txMetric = evaluateTxPower(
+          block,
+          block.role ? String(block.role) : undefined
+        );
+        if (txMetric) evaluations.push(txMetric);
+      }
+      continue;
+    }
+
+    for (const block of measureBlocks) {
+      const label = block.role ? String(block.role) : undefined;
+      const origin = composeOrigin(block.sourceLabel, label);
+
+      evaluations.push(evaluateRssi(block.rssi, label, block.sourceLabel));
+      evaluations.push(evaluateSnr(block.snr, label, block.sourceLabel));
+      evaluations.push(evaluatePacketLoss(block, label));
+      evaluations.push(evaluateMargin(block, noiseFloor, label));
+
+      const rssisMetric = evaluateRssisConsistency(block, label);
+      if (rssisMetric) evaluations.push(rssisMetric);
+      const ackMetric = evaluateAckRate(block, label);
+      if (ackMetric) evaluations.push(ackMetric);
+      const txMetric = evaluateTxPower(block, label);
+      if (txMetric) evaluations.push(txMetric);
+
+      const coherenceResult = coherenceAnalysis(block, noiseFloor);
+      coherence.push({
+        ...coherenceResult,
+        sourceLabel: block.sourceLabel ?? null,
+        elementRole: label ?? null,
+      });
+      evaluations.push({
+        category: "COHERENCIA",
+        metric: "COHERENCIA",
+        value: null,
+        unit: null,
+        status: coherenceResult.status,
+        sourceLabel: block.sourceLabel ?? null,
+        elementRole: label ?? null,
+        label:
+          coherenceResult.case === "—" ? null : `Caso ${coherenceResult.case}`,
+        message: `${origin}${coherenceResult.title}. ${coherenceResult.message}`,
+      });
+    }
   }
 
   return { evaluations, coherence };

@@ -33,9 +33,7 @@ export class FloorPlansController {
   async getAll(@Query("minimal") minimal?: string) {
     const plans = await this.floorPlanService.getAll();
     const includeImage = minimal !== "true";
-    return plans.map(
-      (plan) => new FloorPlanPresenter(plan, { includeImage })
-    );
+    return plans.map((plan) => new FloorPlanPresenter(plan, { includeImage }));
   }
 
   @Get(":id")

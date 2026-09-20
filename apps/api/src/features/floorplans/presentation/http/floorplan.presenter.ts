@@ -61,7 +61,8 @@ export class GeoCalibrationPresenter {
     this.topLeftLat = Number(geo?.topLeftLat) || 0;
     this.topLeftLon = Number(geo?.topLeftLon) || 0;
     this.topRightLat = Number(geo?.topRightLat) || this.topLeftLat;
-    this.topRightLon = Number(geo?.topRightLon) || Number(geo?.bottomRightLon) || 0;
+    this.topRightLon =
+      Number(geo?.topRightLon) || Number(geo?.bottomRightLon) || 0;
     this.bottomRightLat = Number(geo?.bottomRightLat) || 0;
     this.bottomRightLon = Number(geo?.bottomRightLon) || 0;
     this.bottomLeftLat = Number(geo?.bottomLeftLat) || this.bottomRightLat;

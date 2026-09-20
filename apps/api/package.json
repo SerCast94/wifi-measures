@@ -39,6 +39,7 @@
     "express-session": "^1.18.1",
     "helmet": "^8.1.0",
     "keyv": "^5.3.3",
+    "pdfjs-dist": "^3.11.174",
     "puppeteer-core": "^25.8.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"

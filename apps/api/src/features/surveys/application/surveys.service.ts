@@ -85,7 +85,7 @@ export class SurveysService {
       select: { linkLiveId: true, floorZone: true },
     });
     const exteriorWifiIds = new Set(
-      (plans ?? [] as FloorPlanTagRow[])
+      (plans ?? ([] as FloorPlanTagRow[]))
         .filter(
           (plan: FloorPlanTagRow) =>
             plan.floorZone?.trim().toLowerCase() === "mapa exterior wifi"
