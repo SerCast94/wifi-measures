@@ -1,7 +1,5 @@
 import { SignInForm } from "./SignInForm";
 
-// import logo from "@/assets/react.svg";
-
 const SignInPage = () => {
   return (
     <div className="flex flex-col w-full max-w-2xl mx-auto space-y-4 sm:mx-0 sm:w-64 lg:w-80">

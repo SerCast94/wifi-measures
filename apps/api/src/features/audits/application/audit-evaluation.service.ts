@@ -1138,7 +1138,11 @@ export class AuditEvaluationService {
     }
   }
 
-  /** Calcula el resultado global y guarda el borrador de conclusiones. */
+  /**
+   * Refresca el borrador de conclusiones. El resultado global NO se asigna
+   * automáticamente: lo decide el técnico con el selector del informe
+   * (combobox). El valor calculado aquí se devuelve solo como sugerencia.
+   */
   async generateConclusionDraft(auditId: string): Promise<string> {
     const dashboard = await this.auditsService.getDashboard(auditId);
     const evaluations = dashboard.evaluations;
@@ -1194,24 +1198,22 @@ export class AuditEvaluationService {
       });
       if (existing) {
         // No se sobreescribe el texto final editado por el técnico ni un
-        // borrador ya validado manualmente (editedAt posterior).
+        // borrador ya validado manualmente (editedAt posterior). Tampoco se
+        // toca globalResult: ese valor solo cambia cuando el técnico lo
+        // confirma desde el informe.
         await client.auditConclusion.update({
           where: { auditId },
           data: { draft, generatedAt: new Date() },
         });
       } else {
         await client.auditConclusion.create({
-          data: { auditId, draft, globalResult, generatedAt: new Date() },
-        });
-      }
-      if (!existing || !existing.finalText) {
-        await client.auditConclusion.update({
-          where: { auditId },
-          data: { globalResult },
+          data: { auditId, draft, generatedAt: new Date() },
         });
       }
     }
 
+    // Resultado calculado solo como sugerencia (se muestra en el toast de la
+    // UI y nunca se persiste sobre la decisión del técnico).
     return globalResult;
   }
 }

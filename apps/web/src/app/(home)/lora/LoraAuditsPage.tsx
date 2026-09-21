@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import {
   ClipboardListIcon,
   FileTextIcon,
+  PencilIcon,
   PlusIcon,
   Trash2Icon,
 } from "lucide-react";
@@ -21,16 +22,19 @@ import { EmptyState } from "@/core/atomic-components/empty-state";
 import CustomLoading from "@/core/components/CustomLoading";
 import { loraReportPdfUrl } from "@/features/lora/api/lora-api";
 import { LoraAuditStatusBadge } from "@/features/lora/components/badges";
+import { EditLoraAuditDialog } from "@/features/lora/components/EditLoraAuditDialog";
 import {
   useDeleteLoraAudit,
   useLoraAudits,
 } from "@/features/lora/hooks/use-lora";
+import type { LoraAudit } from "@/features/lora/types/lora.types";
 
 const formatDate = (value: string | null) =>
   value ? new Date(value).toLocaleDateString("es-ES") : "—";
 
 const LoraAuditsPage = () => {
   const [q, setQ] = useState("");
+  const [editAudit, setEditAudit] = useState<LoraAudit | null>(null);
   const { data: audits, isLoading } = useLoraAudits(q || undefined);
   const deleteAudit = useDeleteLoraAudit();
 
@@ -125,6 +129,15 @@ const LoraAuditsPage = () => {
                 <Button
                   size="icon"
                   variant="ghost"
+                  className="h-7 w-7"
+                  onClick={() => setEditAudit(audit)}
+                  title="Editar datos generales"
+                >
+                  <PencilIcon className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
                   className="h-7 w-7 hover:text-destructive"
                   onClick={() => handleDelete(audit.id, audit.name)}
                   disabled={deleteAudit.isPending}
@@ -136,6 +149,14 @@ const LoraAuditsPage = () => {
           ))}
         </div>
       )}
+
+      <EditLoraAuditDialog
+        open={editAudit !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditAudit(null);
+        }}
+        audit={editAudit}
+      />
     </div>
   );
 };

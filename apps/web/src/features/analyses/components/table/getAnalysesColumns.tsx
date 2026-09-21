@@ -31,7 +31,7 @@ export const getAnalysesColumns = ({
     id: "name",
     header: "Análisis",
     cell: ({ row }) => (
-      <div className="w-full truncate font-medium whitespace-nowrap" title={row.getValue<string>("name")}>
+      <div className="w-full font-medium whitespace-normal break-words" title={row.getValue<string>("name")}>
         {row.getValue<string>("name")}
       </div>
     ),
@@ -103,7 +103,7 @@ export const getAnalysesColumns = ({
     header: "Unidad",
     cell: ({ row }) => (
       <div
-        className="w-full truncate text-muted-foreground whitespace-nowrap"
+        className="w-full text-muted-foreground whitespace-normal break-words"
         title={row.getValue<string | null>("unitName") ?? undefined}
       >
         {row.getValue<string | null>("unitName") ?? "—"}

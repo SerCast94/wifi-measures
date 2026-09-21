@@ -74,7 +74,9 @@ export const LORA_SNR_MARGIN_THRESHOLDS = {
 // Normaliza el SF de entrada a clave de piso: acepta "SF10", "SF10-DR2", "SF10 DR2", ...
 export const sfFloorKey = (sf: string | null | undefined): string | null => {
   if (!sf) return null;
-  const match = String(sf).toUpperCase().match(/(SF\d+)/);
+  const match = String(sf)
+    .toUpperCase()
+    .match(/(SF\d+)/);
   return match ? match[0] : null;
 };
 
@@ -83,7 +85,7 @@ export const snrMarginLevel = (
   sf: string | null
 ): LoraQualityLevel => {
   const sfKey = sfFloorKey(sf);
-  const floor = sfKey ? SNR_FLOOR_BY_SF[sfKey] ?? -20 : -20; // conservador si SF desconocido
+  const floor = sfKey ? (SNR_FLOOR_BY_SF[sfKey] ?? -20) : -20; // conservador si SF desconocido
   const margin = snr - floor;
   if (margin >= LORA_SNR_MARGIN_THRESHOLDS.excelente) return "EXCELENTE";
   if (margin >= LORA_SNR_MARGIN_THRESHOLDS.buena) return "BUENA";

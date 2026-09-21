@@ -116,7 +116,7 @@ const renderCell = (host: AnalysisHost, columnKey: string) => {
     case "name":
       return (
         <div
-          className="w-full truncate font-medium"
+          className="w-full font-medium whitespace-normal break-words"
           title={host.name && host.name !== "--" ? host.name : undefined}
         >
           {host.name && host.name !== "--" ? host.name : "—"}
@@ -134,7 +134,7 @@ const renderCell = (host: AnalysisHost, columnKey: string) => {
       return <span className="whitespace-nowrap">{host.band ?? "—"}</span>;
     case "ssid":
       return (
-        <div className="w-full truncate" title={host.ssid ?? undefined}>
+        <div className="w-full whitespace-normal break-words" title={host.ssid ?? undefined}>
           {host.ssid ?? "—"}
         </div>
       );
@@ -148,7 +148,7 @@ const renderCell = (host: AnalysisHost, columnKey: string) => {
       return <span className="whitespace-nowrap">{formatSnr(host.snr)}</span>;
     case "counts":
       return (
-        <div className="w-full truncate text-xs" title={renderCounts(host.counts)}>
+        <div className="w-full text-xs whitespace-normal" title={renderCounts(host.counts)}>
           {renderCounts(host.counts)}
         </div>
       );

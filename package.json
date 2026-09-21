@@ -1,7 +1,6 @@
 {
 	"name": "wifi-measures",
 	"version": "1.0.0",
-	"main": "index.js",
 	"private": true,
 	"scripts": {
 		"build": "turbo build",
@@ -9,6 +8,7 @@
 		"kill-ports": "node scripts/kill-ports.js",
 		"start:prod": "node apps/api/dist/main.js",
 		"lint": "turbo lint",
+		"check-types": "turbo run check-types",
 		"format": "prettier --write \"**/*.{ts,tsx,md}\""
 	},
 	"keywords": [],
@@ -26,9 +26,6 @@
 	"devDependencies": {
 		"@types/d3-force": "^3.0.10",
 		"turbo": "^2.5.4"
-	},
-	"optionalDependencies": {
-		"@rollup/rollup-linux-x64-gnu": "4.9.5"
 	},
 	"dependencies": {
 		"@types/leaflet": "^1.9.22",

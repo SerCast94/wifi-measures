@@ -33,10 +33,7 @@ import {
   AuditReportService,
   ReportSection,
 } from "@features/audits/application/audit-report.service";
-import {
-  renderPdf,
-  renderReportHtml,
-} from "@features/audits/application/report-pdf";
+import { renderReportPdf } from "@features/audits/application/report-pdf";
 import {
   AddManualTestDto,
   AddMembersDto,
@@ -464,10 +461,9 @@ export class AuditsController {
   @Get(":id/informe.pdf")
   async reportPdf(@Param("id") id: string, @Res() res: Response) {
     const data = await this.reportService.buildReportData(id);
-    const html = renderReportHtml(data);
     let pdf: Buffer;
     try {
-      pdf = await renderPdf(html);
+      pdf = await renderReportPdf(data);
     } catch (error) {
       const code = error instanceof Error ? error.message : "";
       if (code === "PDF_NO_CHROMIUM" || code === "PDF_NO_ENGINE") {

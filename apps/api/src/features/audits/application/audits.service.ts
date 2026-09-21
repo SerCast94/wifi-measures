@@ -11,6 +11,40 @@ import { AUDIT_TEST_SECTIONS } from "@features/audits/domain/entities/audit.type
 import { PROFILE_PRESETS } from "@features/audits/domain/entities/profile-presets";
 import { classifyMeasureType } from "@features/measures/domain/entities/measure-type";
 
+const ANEXO_IMAGE_MAX_BYTES = 6 * 1024 * 1024;
+const ANEXO_IMAGE_FETCH_TIMEOUT_MS = 15000;
+
+const isImageUrl = (value: unknown): boolean =>
+  typeof value === "string" &&
+  /\.(png|jpe?g|gif|webp|bmp)(\?.*)?$/i.test(value);
+
+async function materializeAnexoImage(item: {
+  name: string;
+  href: string;
+  thumb?: string;
+}): Promise<{ name: string; href: string; thumb?: string; img?: string }> {
+  const candidates = [item.thumb, item.href].filter(
+    (src): src is string => Boolean(src) && isImageUrl(src)
+  );
+  for (const url of candidates) {
+    try {
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), ANEXO_IMAGE_FETCH_TIMEOUT_MS);
+      const res = await fetch(url, { signal: ctl.signal });
+      clearTimeout(timer);
+      if (!res.ok) continue;
+      const ct = res.headers.get("content-type") ?? "";
+      if (!ct.startsWith("image/")) continue;
+      const body = Buffer.from(await res.arrayBuffer());
+      if (body.byteLength > ANEXO_IMAGE_MAX_BYTES) continue;
+      return { ...item, img: `data:${ct};base64,${body.toString("base64")}` };
+    } catch {
+      // siguiente candidato
+    }
+  }
+  return { ...item };
+}
+
 export interface CreateAuditInput {
   name: string;
   code?: string;
@@ -84,18 +118,24 @@ export class AuditsService {
     const client = this.client;
     if (!client) throw new Error("Base de datos no disponible");
     const clean = Array.isArray(items)
-      ? items
-          .filter(
-            (item) =>
-              item &&
-              typeof item.name === "string" &&
-              typeof item.href === "string"
-          )
-          .map((item) => ({
-            name: item.name,
-            href: item.href,
-            thumb: (item as { thumb?: string }).thumb,
-          }))
+      ? await Promise.all(
+          items
+            .filter(
+              (item) =>
+                item &&
+                typeof item.name === "string" &&
+                typeof item.href === "string"
+            )
+            .map(async (item) => {
+              const thumb = (item as { thumb?: string }).thumb;
+              const withImage = await materializeAnexoImage({
+                name: item.name,
+                href: item.href,
+                thumb,
+              });
+              return withImage;
+            })
+        )
       : [];
     return client.audit.update({
       where: { id: auditId },

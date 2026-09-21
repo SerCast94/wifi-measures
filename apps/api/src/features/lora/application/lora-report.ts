@@ -11,6 +11,7 @@ import {
   LORA_BAREMO,
   type EvalStatus,
   type EvaluatedMetric,
+  type LoraRecommendation,
 } from "./lora-analysis-lib";
 import {
   LORA_LEVEL_COLOR,
@@ -675,6 +676,49 @@ function analysisChartsHtml(
   );
 }
 
+const REC_CATEGORY_LABEL: Record<string, string> = {
+  COBERTURA: "Cobertura",
+  RADIO: "Señal",
+  ENTREGA: "Entrega",
+  OPERATIVO: "Operativo",
+};
+
+const REC_SEVERITY_COLOR: Record<string, string> = {
+  alta: "#dc2626",
+  media: "#d97706",
+  baja: "#2563eb",
+  info: "#16a34a",
+};
+
+function recommendationsIntroHtml(items: LoraRecommendation[]): string {
+  if (items.length === 0) return "";
+  const urgentes = items.filter((i) => i.severity === "alta").length;
+  const basis =
+    urgentes > 0
+      ? `${urgentes} de ${items.length} exige${urgentes === 1 ? "" : "n"} atención antes de la puesta en servicio`
+      : "sin incumplimientos graves; son acciones de margen y refuerzo";
+  return `<p class="rec-summary">Se proponen ${items.length} ${items.length === 1 ? "acción" : "acciones"}: ${basis}.</p>`;
+}
+
+function recommendationCardsHtml(items: LoraRecommendation[]): string {
+  if (items.length === 0) {
+    return '<p class="muted">No se necesitan recomendaciones.</p>';
+  }
+  return items
+    .map(({ severity, category, title, detail }) => {
+      const color = REC_SEVERITY_COLOR[severity] ?? "#2563eb";
+      return `<div class="rec" style="border-left-color:${color}">
+      <div class="rec-head">
+        <span style="width:9px;height:9px;border-radius:50%;background:${color};display:inline-block;"></span>
+        <span class="rec-title">${esc(title)}</span>
+        <span class="rec-chip" style="background:${color}">${esc(REC_CATEGORY_LABEL[category] ?? category)}</span>
+      </div>
+      <div class="rec-body">${esc(detail)}</div>
+    </div>`;
+    })
+    .join("");
+}
+
 /**
  * Construye las secciones del análisis en el orden del documento:
  * [0] Vista general, [1] Gráficas, [2] Detalle, [3] Coherencia, [4] Recomendaciones.
@@ -728,7 +772,8 @@ function buildAnalysisParts(
     ${coherenceHtml(coherence)}`;
 
   const recommendations = `<section class="break"><h2 id="sec-recomendaciones"><span class="secnum">9</span> Recomendaciones</h2>
-    <ul>${summary.recommendations.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>
+    ${recommendationsIntroHtml(summary.recommendations)}
+    ${recommendationCardsHtml(summary.recommendations)}
   </section>`;
 
   return [overview, charts, detail, coherencePart, recommendations];
@@ -1458,6 +1503,12 @@ export function renderLoraReportHtml(
   .toc-l2 .n { color:#94a3b8; font-weight:600; }
   .toc-dots { min-width:30px; border-bottom:2px dotted #cbd5e1 !important; }
   .toc-page { text-align:right; min-width:24px; font-size:12px; font-weight:700; color:#111827; font-variant-numeric:tabular-nums; }
+  .rec-summary { font-size:10.5px; color:#374151; margin:0 0 12px; }
+  .rec { border:1px solid #e5e7eb; border-left:4px solid #2563eb; border-radius:8px; padding:10px 12px; margin:0 0 10px; page-break-inside:avoid; }
+  .rec-head { display:flex; align-items:center; gap:8px; margin-bottom:4px; }
+  .rec-title { font-weight:700; font-size:12px; color:#111827; }
+  .rec-chip { margin-left:auto; font-size:9px; font-weight:700; padding:2px 8px; border-radius:99px; color:#fff; }
+  .rec-body { font-size:10.5px; color:#374151; }
 </style></head><body>
   <div class="cover">
     <h1>Informe de auditoría LoRa</h1>

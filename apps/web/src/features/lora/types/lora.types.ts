@@ -142,13 +142,27 @@ export interface LoraCoherence {
   elementRole?: string | null;
 }
 
+export type LoraRecommendationSeverity = "alta" | "media" | "baja" | "info";
+export type LoraRecommendationCategory =
+  | "COBERTURA"
+  | "RADIO"
+  | "ENTREGA"
+  | "OPERATIVO";
+
+export interface LoraRecommendation {
+  severity: LoraRecommendationSeverity;
+  category: LoraRecommendationCategory;
+  title: string;
+  detail: string;
+}
+
 export interface LoraAnalysisSummary {
   total: number;
   byStatus: Record<LoraEvalStatus, number>;
   pctPass: number;
   globalResult: string;
   paragraphs: string[];
-  recommendations: string[];
+  recommendations: LoraRecommendation[];
 }
 
 export interface LoraAnalysis {

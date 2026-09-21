@@ -2,7 +2,7 @@ import { useEffect, useMemo } from "react";
 import L from "leaflet";
 // leaflet.heat es un IIFE antiguo que registra L.heatLayer sobre el L global.
 // Garantizamos window.L y cargamos el side-effect después de leaflet.
-(globalThis as any).L = L;
+(globalThis as unknown as { L: typeof L }).L = L;
 import "leaflet.heat";
 import {
   MapContainer,

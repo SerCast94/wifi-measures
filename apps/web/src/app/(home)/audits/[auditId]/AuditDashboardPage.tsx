@@ -59,7 +59,9 @@ const AuditDashboardPage = () => {
     try {
       const result = await runEvaluation.mutateAsync(undefined);
       toast.success(
-        `Evaluación completada: ${result.total} métricas · resultado ${result.globalResult}`
+        `Evaluación completada: ${result.total} métricas · resultado sugerido ${String(
+          result.globalResult
+        ).replace(/_/g, " ")}`
       );
     } catch {
       // error gestionado globalmente
@@ -81,7 +83,7 @@ const AuditDashboardPage = () => {
   };
 
   return (
-    <div className="container max-w-6xl px-2 py-2 mx-auto mb-4 sm:py-6 animate-in fade-in-0">
+    <div className="container max-w-7xl px-2 py-2 mx-auto mb-4 sm:py-6 animate-in fade-in-0">
       <AuditHeader />
 
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">

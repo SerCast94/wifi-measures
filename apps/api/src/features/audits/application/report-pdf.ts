@@ -245,7 +245,89 @@ function table(headers: string[], rows: string[][]): string {
     .join("")}</tbody></table>`;
 }
 
-export function renderReportHtml(data: any): string {
+function wifiBaremoSection(
+  profileName: string | null,
+  thresholds: any
+): string {
+  const DEFAULTS: any = {
+    coverage: {
+      rssi: { passMin: -67, warnMin: -72 },
+      snr: { passMin: 25, warnMin: 20 },
+      minPassRatePct: { passMax: 5, warnMax: 15 },
+    },
+    radio: {
+      channelUtilizationPct: { passMax: 50, warnMax: 70 },
+      nonWifiUtilizationPct: { passMax: 10, warnMax: 25 },
+      coChannelApCount: { passMax: 2, warnMax: 4 },
+      adjacentChannelApCount: { passMax: 4, warnMax: 8 },
+      rogueApsMax: { passMax: 0, warnMax: 2 },
+    },
+    performance: {
+      maxLatencyMs: 50,
+      minUploadMbps: 20,
+      minDownloadMbps: 50,
+      maxPacketLossPct: 1,
+    },
+  };
+  const t = {
+    coverage: { ...DEFAULTS.coverage, ...(thresholds?.coverage ?? {}) },
+    radio: { ...DEFAULTS.radio, ...(thresholds?.radio ?? {}) },
+    performance: {
+      ...DEFAULTS.performance,
+      ...(thresholds?.performance ?? {}),
+    },
+  };
+  const wrapMin = (v: any): { passMin: number; warnMin: number } => ({
+    passMin: Number(v ?? 0),
+    warnMin: Number(v ?? 0) * 0.5,
+  });
+  const wrapMax = (v: any): { passMax: number; warnMax: number } => ({
+    passMax: Number(v ?? 0),
+    warnMax: Number(v ?? 0) * 1.5,
+  });
+  const minRow = (label: string, unit: string, th: any) =>
+    `<tr><td>${label} (${unit})</td><td>${th.passMin !== undefined ? `≥ ${th.passMin}` : "—"}</td><td>${th.warnMin !== undefined ? `≥ ${th.warnMin}` : "—"}</td><td>${th.warnMin !== undefined ? `< ${th.warnMin}` : "—"}</td></tr>`;
+  const maxRow = (label: string, unit: string, th: any) =>
+    `<tr><td>${label} (${unit})</td><td>${th.passMax !== undefined ? `≤ ${th.passMax}` : "—"}</td><td>${th.warnMax !== undefined ? `≤ ${th.warnMax}` : "—"}</td><td>${th.warnMax !== undefined ? `> ${th.warnMax}` : "—"}</td></tr>`;
+  const head = `<table><thead><tr><th>Métrica</th><th>Conforme</th><th>En el límite (hasta)</th><th>No conforme</th></tr></thead><tbody>`;
+  const cov = `${head}
+    ${minRow("RSSI", "dBm", t.coverage.rssi)}
+    ${minRow("SNR", "dB", t.coverage.snr)}
+    ${maxRow("Tasa de paso de paquete (fallos)", "%", t.coverage.minPassRatePct)}
+  </tbody></table>`;
+  const rad = `${head}
+    ${maxRow("Utilización de canal", "%", t.radio.channelUtilizationPct)}
+    ${maxRow("Interferencia no Wi-Fi", "%", t.radio.nonWifiUtilizationPct)}
+    ${maxRow("APs en el mismo canal (co-canal)", "APs", t.radio.coChannelApCount)}
+    ${maxRow("APs en canales adyacentes", "APs", t.radio.adjacentChannelApCount)}
+    ${maxRow("APs rogue", "APs", t.radio.rogueApsMax)}
+  </tbody></table>`;
+  const perf = `${head}
+    ${maxRow("Latencia", "ms", wrapMax(t.performance.maxLatencyMs))}
+    ${maxRow("Pérdida de paquetes", "%", wrapMax(t.performance.maxPacketLossPct))}
+    ${minRow("Subida mínima", "Mbps", wrapMin(t.performance.minUploadMbps))}
+    ${minRow("Bajada mínima", "Mbps", wrapMin(t.performance.minDownloadMbps))}
+  </tbody></table>`;
+  return `<section class="break"><h2 id="sec-baremo"><span class="secnum">2</span> Baremo aplicado</h2>
+    <p class="muted">Umbrales utilizados para evaluar cada criterio${profileName ? ` según el perfil «${esc(profileName)}»` : ""}. «En el límite (hasta)» indica la franja de advertencia: el valor aún se considera WARNING y debe revisarse antes de la puesta en servicio.</p>
+    <h3>Cobertura</h3>${cov}
+    <h3>Entorno radioeléctrico</h3>${rad}
+    <h3>Rendimiento</h3>${perf}
+    <h3>Escala de estados</h3>
+    <table><thead><tr><th>Estado</th><th>Significado</th></tr></thead><tbody>
+    <tr><td><span style="color:#16a34a">Conforme (PASS)</span></td><td>El valor cumple los objetivos del perfil seleccionado.</td></tr>
+    <tr><td><span style="color:#d97706">En el límite (WARNING)</span></td><td>El valor queda en la franja de advertencia; conviene planificar actuación.</td></tr>
+    <tr><td><span style="color:#dc2626">No conforme (FAIL)</span></td><td>El valor supera el umbral aceptable.</td></tr>
+    <tr><td><span style="color:#6b7280">Sin dato (UNKNOWN)</span></td><td>No hay muestra suficiente para evaluar el criterio.</td></tr>
+    </tbody></table>
+  </section>`;
+}
+
+export function renderReportHtml(
+  data: any,
+  options?: { pageMap?: Record<string, number> }
+): string {
+  const pageMap: Record<string, number> | undefined = options?.pageMap;
   const header = data.header ?? {};
   const kpis = data.resumen?.kpis ?? {};
   const cobertura: any[] = data.cobertura ?? [];
@@ -260,7 +342,7 @@ export function renderReportHtml(data: any): string {
   const recomendaciones: any[] = data.recomendaciones ?? [];
 
   const coberturaHtml = cobertura.length
-    ? `<section><h2 id="sec-cobertura">Cobertura por encuesta</h2>${cobertura
+    ? `<section class="break"><h2 id="sec-cobertura"><span class="secnum">4</span> Cobertura por encuesta</h2>${cobertura
         .map((surveyRow) => {
           const hasSignal = (surveyRow.points ?? []).some(
             (p: any) => String(p.metric) === "signal" && p.value != null
@@ -288,7 +370,7 @@ export function renderReportHtml(data: any): string {
     : "";
 
   const conectividadHtml = conectividadRows.length
-    ? `<section><h2 id="sec-conectividad">Conectividad por punto</h2>${conectividadRows
+    ? `<section><h2 id="sec-conectividad"><span class="secnum">5</span> Conectividad por punto</h2>${conectividadRows
         .map(
           (row) =>
             `<p><strong>${esc(row.point)}</strong></p><ul>${Object.entries(
@@ -338,7 +420,7 @@ export function renderReportHtml(data: any): string {
     : "";
   const radioHtml =
     ssidsHtml || apsHtml
-      ? `<section class="break"><h2 id="sec-entorno-radio">Entorno radioeléctrico detectado</h2>${ssidsHtml}${apsHtml}</section>`
+      ? `<section class="break"><h2 id="sec-entorno-radio"><span class="secnum">9</span> Entorno radioeléctrico detectado</h2>${ssidsHtml}${apsHtml}</section>`
       : "";
 
   const recomendacionesLabels: Record<string, string> = {
@@ -349,7 +431,7 @@ export function renderReportHtml(data: any): string {
   const recomendacionesHtml = recomendaciones.some(
     (group) => (group.items ?? []).length > 0
   )
-    ? `<section class="break"><h2 id="sec-recomendaciones">Recomendaciones</h2>${recomendaciones
+    ? `<section class="break"><h2 id="sec-recomendaciones"><span class="secnum">12</span> Recomendaciones</h2>${recomendaciones
         .filter((group) => (group.items ?? []).length > 0)
         .map(
           (
@@ -489,6 +571,90 @@ export function renderReportHtml(data: any): string {
     );
   })();
 
+  const tocSections: Array<{
+    id: string;
+    number: number;
+    label: string;
+    present: boolean;
+  }> = [
+    { id: "sec-resumen", number: 1, label: "Resumen ejecutivo", present: true },
+    { id: "sec-baremo", number: 2, label: "Baremo aplicado", present: true },
+    {
+      id: "sec-graficas-analisis",
+      number: 3,
+      label: "Gráficas del análisis",
+      present: true,
+    },
+    {
+      id: "sec-cobertura",
+      number: 4,
+      label: "Cobertura por encuesta",
+      present: cobertura.length > 0,
+    },
+    {
+      id: "sec-conectividad",
+      number: 5,
+      label: "Conectividad por punto",
+      present: conectividadRows.length > 0,
+    },
+    {
+      id: "sec-rendimiento",
+      number: 6,
+      label: "Rendimiento y movilidad",
+      present: true,
+    },
+    {
+      id: "sec-analisis",
+      number: 7,
+      label: "Análisis vinculados",
+      present: true,
+    },
+    {
+      id: "sec-graficas-dispositivos",
+      number: 8,
+      label: "Gráficas de dispositivos",
+      present: true,
+    },
+    {
+      id: "sec-entorno-radio",
+      number: 9,
+      label: "Entorno radioeléctrico detectado",
+      present: Boolean(ssidsHtml || apsHtml),
+    },
+    {
+      id: "sec-evaluacion",
+      number: 10,
+      label: "Evaluación de criterios",
+      present: true,
+    },
+    { id: "sec-incidencias", number: 11, label: "Incidencias", present: true },
+    {
+      id: "sec-recomendaciones",
+      number: 12,
+      label: "Recomendaciones",
+      present: recomendaciones.some((g) => (g.items ?? []).length > 0),
+    },
+    {
+      id: "sec-anexos",
+      number: 13,
+      label: "Anexos",
+      present: (data.anexos?.audit ?? []).length > 0,
+    },
+    {
+      id: "sec-conclusiones",
+      number: 14,
+      label: "Conclusiones",
+      present: true,
+    },
+  ];
+  const tocItemsHtml = tocSections
+    .filter((s) => s.present)
+    .map(
+      (s) =>
+        `<li><span class="toc-n">${s.number}.</span><span class="toc-t">${esc(s.label)}</span><span class="toc-dots"></span><span class="toc-p">${pageMap?.[s.id] ?? ""}</span></li>`
+    )
+    .join("");
+
   return `<!doctype html>
 <html lang="es"><head><meta charset="utf-8"/><style>
   @page { size: A4; margin: 16mm 12mm 18mm 12mm; }
@@ -579,6 +745,16 @@ export function renderReportHtml(data: any): string {
   .charts-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
   .chart-card { border:1px solid #d1d5db; border-radius:6px; padding:10px 12px; page-break-inside:avoid; }
   .chart-card h3 { font-size:11px; margin:0 0 6px; color:#374151; }
+  .secnum { color:#2563eb; font-weight:bold; margin-right:6px; }
+  .cover-chips { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin:26px 0 0; }
+  .chip { border:1px solid #d1d5db; border-radius:20px; padding:4px 14px; font-size:11px; color:#374151; }
+  .chip b { display:block; font-size:16px; color:#111827; }
+  .toc ol { list-style:none; margin:0; padding:0; }
+  .toc li { display:flex; align-items:baseline; gap:6px; }
+  .toc .toc-n { min-width:22px; color:#2563eb; font-weight:bold; }
+  .toc .toc-t { white-space:nowrap; }
+  .toc .toc-dots { flex:1; border-bottom:1px dotted #9ca3af; position:relative; top:-3px; min-width:12px; }
+  .toc .toc-p { min-width:20px; text-align:right; font-weight:bold; color:#111827; }
 </style></head><body>
 <div class="cover">
   <h1>Informe de auditoría Wi-Fi</h1>
@@ -591,29 +767,23 @@ export function renderReportHtml(data: any): string {
     <div><b>Fecha:</b> ${fmtDate(header.auditDate)}</div>
   </div>
   <div class="result">Resultado: ${esc(data.resumen?.globalResult?.replace(/_/g, " ") ?? "Pendiente")}</div>
-  <p style="margin-top:60px;font-size:10px;color:#6b7280">Generado el ${new Date().toLocaleString("es-ES")}</p>
+  <div class="cover-chips">
+    <div class="chip"><b>${esc(kpis.measures ?? 0)}</b>medidas</div>
+    <div class="chip"><b>${esc(kpis.surveys ?? 0)}</b>encuestas</div>
+    <div class="chip"><b>${esc(kpis.analyses ?? 0)}</b>análisis</div>
+    <div class="chip"><b>${esc(kpis.evaluationsTotal ?? 0)}</b>criterios</div>
+    <div class="chip"><b>${esc(kpis.aps ?? 0)}</b>APs</div>
+    <div class="chip"><b>${esc(kpis.ssids ?? 0)}</b>SSIDs</div>
+  </div>
+  <p style="margin-top:26px;font-size:10px;color:#6b7280">Generado el ${new Date().toLocaleString("es-ES")}</p>
 </div>
 
 <div class="toc">
   <h2>Índice</h2>
-  <ol>
-    <li><a href="#sec-resumen">Resumen ejecutivo</a></li>
-    <li><a href="#sec-graficas-analisis">Gráficas del análisis</a></li>
-    <li><a href="#sec-cobertura">Cobertura por encuesta</a></li>
-    <li><a href="#sec-conectividad">Conectividad por punto</a></li>
-    <li><a href="#sec-rendimiento">Rendimiento y movilidad</a></li>
-    <li><a href="#sec-analisis">Análisis vinculados</a></li>
-    <li><a href="#sec-graficas-dispositivos">Gráficas de dispositivos</a></li>
-    <li><a href="#sec-entorno-radio">Entorno radioeléctrico detectado</a></li>
-    <li><a href="#sec-evaluacion">Evaluación de criterios</a></li>
-    <li><a href="#sec-incidencias">Incidencias</a></li>
-    <li><a href="#sec-recomendaciones">Recomendaciones</a></li>
-    <li><a href="#sec-anexos">Anexos</a></li>
-    <li><a href="#sec-conclusiones">Conclusiones</a></li>
-  </ol>
+  <ol>${tocItemsHtml}</ol>
 </div>
 
-<h2 id="sec-resumen">1. Resumen ejecutivo</h2>
+<h2 id="sec-resumen"><span class="secnum">1</span> Resumen ejecutivo</h2>
 <dl>
   <dt>Cliente</dt><dd>${esc(header.client) || "—"}</dd>
   <dt>Proyecto</dt><dd>${esc(header.project) || "—"}</dd>
@@ -622,7 +792,7 @@ export function renderReportHtml(data: any): string {
   <dt>Resultado global</dt><dd><b>${esc(data.resumen?.globalResult?.replace(/_/g, " ") ?? "Pendiente")}</b></dd>
 </dl>
 
-<section><h2 id="sec-resumen-kpi">Resumen ejecutivo</h2>
+<section><h2 id="sec-resumen-kpi">Resultados generales</h2>
 <div class="kpis">
   <div class="kpi"><b>${esc(kpis.evaluationsTotal ?? 0)}</b>criterios evaluados</div>
   <div class="kpi"><b style="color:#16a34a">${esc(kpis.pctPass ?? 0)}%</b>conformes</div>
@@ -634,9 +804,14 @@ export function renderReportHtml(data: any): string {
   } análisis. Descubrimiento: ${esc(kpis.aps ?? 0)} APs, ${esc(kpis.ssids ?? 0)} SSIDs.</p>
 </section>
 
+${wifiBaremoSection(
+  data.header?.profileName ?? null,
+  data.header?.profileThresholds ?? null
+)}
+
 ${coberturaHtml}
 
-<section class="break"><h2 id="sec-graficas-analisis">2. Gráficas del análisis</h2>
+<section class="break"><h2 id="sec-graficas-analisis"><span class="secnum">3</span> Gráficas del análisis</h2>
 ${(() => {
   const total = Number(kpis.evaluationsTotal ?? 0);
   const parts: string[] = [];
@@ -691,10 +866,10 @@ ${(() => {
 })()}
 </section>
 ${conectividadHtml}
-<section><h2 id="sec-rendimiento">Rendimiento y movilidad</h2>
+<section><h2 id="sec-rendimiento"><span class="secnum">6</span> Rendimiento y movilidad</h2>
 <p>${data.roaming?.performed ? "Prueba de roaming realizada." : esc(data.roaming?.note ?? "Prueba de roaming no realizada o sin datos disponibles.")}</p>
 </section>
-<section class="break"><h2 id="sec-analisis">6. Análisis vinculados</h2>
+<section class="break"><h2 id="sec-analisis"><span class="secnum">7</span> Análisis vinculados</h2>
 ${(() => {
   const detalles: any[] = data.analisisDetalle ?? [];
   if (detalles.length === 0) return "<p>Sin análisis vinculados.</p>";
@@ -807,7 +982,7 @@ ${(() => {
 })()}
 </section>
 
-<section class="break"><h2 id="sec-graficas-dispositivos">Gráficas de dispositivos</h2>
+<section class="break"><h2 id="sec-graficas-dispositivos"><span class="secnum">8</span> Gráficas de dispositivos</h2>
 <div class="charts-grid">
   <div class="chart-card"><h3>Dispositivos por banda</h3>${bandaHtml || "<p class='muted'>Sin datos</p>"}</div>
   <div class="chart-card"><h3>Tipos de seguridad</h3>${seguridadHtml || "<p class='muted'>Sin información de seguridad</p>"}</div>
@@ -820,7 +995,7 @@ ${(() => {
 
 ${radioHtml}
 
-<section class="break"><h2 id="sec-evaluacion">Evaluación de criterios</h2>
+<section class="break"><h2 id="sec-evaluacion"><span class="secnum">10</span> Evaluación de criterios</h2>
 ${(() => {
   const evaluations: any[] = data.anexos?.evaluations ?? [];
   const labels: Record<string, string> = {
@@ -862,7 +1037,7 @@ ${(() => {
 })()}
 </section>
 
-<section class="break"><h2 id="sec-incidencias">Incidencias (${incidencias.length})</h2>
+<section class="break"><h2 id="sec-incidencias"><span class="secnum">11</span> Incidencias (${incidencias.length})</h2>
 ${
   incidencias.length === 0
     ? "<p>Sin incidencias registradas.</p>"
@@ -884,7 +1059,7 @@ ${recomendacionesHtml}
 
 ${
   (data.anexos?.audit ?? []).length
-    ? `<section class="break"><h2 id="sec-anexos">Anexos (archivos Link-Live)</h2><div class="anexo-grid">${data.anexos.audit
+    ? `<section class="break"><h2 id="sec-anexos"><span class="secnum">13</span> Anexos (archivos Link-Live)</h2><div class="anexo-grid">${data.anexos.audit
         .map((item: any) => {
           const hasImgExt = (v: unknown) =>
             typeof v === "string" && /\.(png|jpe?g|gif|webp|bmp)$/i.test(v);
@@ -904,7 +1079,8 @@ ${
             isDataImg(item.href) || hasImgExt(item.href) || hasImgExt(item.name)
               ? item.href
               : null;
-          const imgSrc = thumbSrc || directSrc;
+          const imgData = isDataImg(item.img) ? item.img : null;
+          const imgSrc = imgData || thumbSrc || directSrc;
           const extName = ext(item.name) || ext(item.href) || "archivo";
           if (imgSrc) {
             return `<figure class="anexo-card"><div class="anexo-media"><img src="${esc(imgSrc)}" alt="${esc(item.name)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/><div class="anexo-file" style="display:none"><div class="anexo-file-icon">${esc(extName.length > 4 ? extName.slice(0, 4) : extName).toUpperCase()}</div><span>Vista previa no disponible</span></div></div><figcaption>${esc(item.name)}</figcaption></figure>`;
@@ -914,7 +1090,7 @@ ${
         .join("")}</div></section>`
     : ""
 }
-<section class="break"><h2 id="sec-conclusiones">Conclusiones</h2>
+<section class="break"><h2 id="sec-conclusiones"><span class="secnum">14</span> Conclusiones</h2>
 <div class="card"><p style="white-space:pre-wrap">${esc(
     data.conclusiones?.finalText ||
       data.conclusiones?.draft ||
@@ -962,24 +1138,34 @@ function pngJpegSize(buf: Buffer): { w: number; h: number } | null {
 }
 
 async function inlineImages(html: string): Promise<string> {
-  const urls = [
-    ...new Set(
-      Array.from(html.matchAll(/src="(https?:\/\/[^"]+)"/g)).map((m) => m[1])
-    ),
-  ].slice(0, 14);
+  const urls = [...Array.from(html.matchAll(/src="([^"]+)"/g)).map((m) => m[1])]
+    .filter((src) => /^https?:\/\//i.test(src) && !src.match(/^data:/i))
+    .map((src) => ({
+      raw: src,
+      url: src
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"')
+        .replace(/&#x27;/g, "'"),
+    }));
+  const unique = [...new Map(urls.map((u) => [u.url, u])).values()].slice(
+    0,
+    40
+  );
   await Promise.all(
-    urls.map(async (u) => {
+    unique.map(async ({ raw, url }) => {
       try {
         const ctl = new AbortController();
         const timer = setTimeout(() => ctl.abort(), 8000);
-        const res = await fetch(u, { signal: ctl.signal });
+        const res = await fetch(url, { signal: ctl.signal });
         clearTimeout(timer);
         if (!res.ok) return;
         const ct = res.headers.get("content-type") ?? "image/jpeg";
         if (!ct.startsWith("image/")) return;
         const body = Buffer.from(await res.arrayBuffer());
         html = html
-          .split(`src="${u}"`)
+          .split(`src="${raw}"`)
           .join(`src="data:${ct};base64,${body.toString("base64")}"`);
       } catch {
         /* imagen opcional */
@@ -1005,6 +1191,83 @@ export function findChromiumPath(): string | null {
     }
   }
   return null;
+}
+
+const WIFI_TOC_PATTERNS: Record<string, RegExp> = {
+  "sec-resumen": /^(?:1\s+)?Resumen ejecutivo$/,
+  "sec-baremo": /^(?:2\s+)?Baremo aplicado$/,
+  "sec-graficas-analisis": /^(?:3\s+)?Gráficas del análisis$/,
+  "sec-cobertura": /^(?:4\s+)?Cobertura por encuesta$/,
+  "sec-conectividad": /^(?:5\s+)?Conectividad por punto$/,
+  "sec-rendimiento": /^(?:6\s+)?Rendimiento y movilidad$/,
+  "sec-analisis": /^(?:7\s+)?Análisis vinculados$/,
+  "sec-graficas-dispositivos": /^(?:8\s+)?Gráficas de dispositivos$/,
+  "sec-entorno-radio": /^(?:9\s+)?Entorno radioeléctrico detectado$/,
+  "sec-evaluacion": /^(?:10\s+)?Evaluación de criterios$/,
+  "sec-incidencias": /^(?:11\s+)?Incidencias \(\d+\)$/,
+  "sec-recomendaciones": /^(?:12\s+)?Recomendaciones$/,
+  "sec-anexos": /^(?:13\s+)?Anexos \(archivos Link-Live\)$/,
+  "sec-conclusiones": /^(?:14\s+)?Conclusiones$/,
+};
+
+/** Recompone líneas de texto del PDF agrupando los fragmentos por posición Y. */
+function textLines(items: any[]): string[] {
+  const rows = new Map<number, Array<{ str: string; x: number; w: number }>>();
+  for (const it of items) {
+    if (typeof it?.str !== "string" || !Array.isArray(it.transform)) continue;
+    const y = Math.round(it.transform[5]);
+    const list = rows.get(y) ?? [];
+    list.push({ str: it.str, x: it.transform[4], w: Number(it.width ?? 0) });
+    rows.set(y, list);
+  }
+  const lines: string[] = [];
+  for (const list of rows.values()) {
+    list.sort((a, b) => a.x - b.x);
+    let line = "";
+    let prevEnd = -Infinity;
+    for (const t of list) {
+      line += t.x > prevEnd + 1 && line !== "" ? " " + t.str : t.str;
+      prevEnd = Math.max(prevEnd, t.x + t.w);
+    }
+    lines.push(line.replace(/\s+/g, " ").trim());
+  }
+  return lines;
+}
+
+/** Localiza, con pdfjs-dist, la página física donde cae cada apartado. */
+async function extractHeadingPages(
+  pdf: Buffer
+): Promise<Record<string, number>> {
+  const pdfjs = nodeRequire("pdfjs-dist/legacy/build/pdf.js");
+  const map: Record<string, number> = {};
+  const pending = new Set(Object.keys(WIFI_TOC_PATTERNS));
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(pdf) }).promise;
+  try {
+    // Las páginas 1 (portada) y 2 (índice) contienen las mismas etiquetas;
+    // la búsqueda empieza en la página 3.
+    for (let pageNo = 3; pageNo <= doc.numPages && pending.size > 0; pageNo++) {
+      const page = await doc.getPage(pageNo);
+      const content = await page.getTextContent();
+      const lines = textLines(content.items);
+      for (const id of Array.from(pending)) {
+        if (lines.some((line) => WIFI_TOC_PATTERNS[id].test(line))) {
+          map[id] = pageNo;
+          pending.delete(id);
+        }
+      }
+    }
+  } finally {
+    await doc.destroy();
+  }
+  return map;
+}
+
+/** Render del informe con índice "doble pasada": localiza las páginas reales
+ *  de cada apartado y re-renderiza con los números en el índice. */
+export async function renderReportPdf(data: any): Promise<Buffer> {
+  const probe = await renderPdf(renderReportHtml(data, { pageMap: {} }));
+  const pageMap = await extractHeadingPages(probe);
+  return renderPdf(renderReportHtml(data, { pageMap }));
 }
 
 export async function renderPdf(

@@ -4,6 +4,7 @@ import {
   AudioWaveformIcon,
   Link as LinkIcon,
   MapIcon,
+  PencilIcon,
   RadioTowerIcon,
 } from "lucide-react";
 
@@ -29,6 +30,7 @@ import LoraAuditHeader from "./LoraAuditHeader";
 import { LoraMeasuresTable } from "@/features/lora/components/LoraMeasuresTable";
 import { LoraNoiseTable } from "@/features/lora/components/LoraNoiseTable";
 import { LinkFloorPlanDialog } from "@/features/lora/components/LinkFloorPlanDialog";
+import { EditLoraAuditDialog } from "@/features/lora/components/EditLoraAuditDialog";
 import { LoraPlanHeatmap } from "@/features/lora/components/LoraPlanHeatmap";
 import { useFloorPlans } from "@/features/floorplans/hooks/use-floorplans";
 import { normalizeGeoCalibration } from "@/features/floorplans/types/floorplan.types";
@@ -123,6 +125,7 @@ const LoraAuditDetailPage = () => {
   const { data: allPlans = [] } = useFloorPlans();
   const [showLinkDialog, setShowLinkDialog] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
   const updateAudit = useUpdateLoraAudit();
   const updateMeasureLocation = useUpdateMeasureLocation();
   const updateNoiseLocation = useUpdateNoiseLocation();
@@ -197,8 +200,12 @@ const LoraAuditDetailPage = () => {
       <LoraAuditHeader />
 
       <Card className="mt-6">
-        <CardHeader className="pb-2">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-base">Datos generales</CardTitle>
+          <Button variant="outline" size="sm" onClick={() => setShowEditDialog(true)}>
+            <PencilIcon className="mr-2 h-4 w-4" />
+            Editar
+          </Button>
         </CardHeader>
         <CardContent>
           <dl className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
@@ -381,6 +388,12 @@ const LoraAuditDetailPage = () => {
         auditId={audit.id}
         currentFloorPlanId={audit.floorPlanId}
         onLinked={() => {}}
+      />
+
+      <EditLoraAuditDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        audit={audit}
       />
 
       <div className="mt-6">

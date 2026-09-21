@@ -50,10 +50,8 @@ export const getMeasuresColumns = ({
       cell: ({ row }: { row: Row<MeasureModel> }) => {
         const label = `${row.original.metadata["AREA_GEOGR"] ?? ""}`;
         return (
-          <div className="w-[220px]">
-            <span className="block truncate" title={label}>
-              {label || "—"}
-            </span>
+          <div className="min-w-[220px] max-w-[420px] whitespace-normal break-words" title={label}>
+            {label || "—"}
           </div>
         );
       },
@@ -63,7 +61,7 @@ export const getMeasuresColumns = ({
       header: "PERFIL",
       cell: ({ row }: { row: Row<MeasureModel> }) => (
         <div
-          className="w-[110px] truncate"
+          className="min-w-[130px] whitespace-normal break-words"
           title={`${row.original.name ?? ""}`}
         >
           {row.original.name || "—"}

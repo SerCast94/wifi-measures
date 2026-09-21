@@ -103,6 +103,7 @@ export class AuditReportService {
         endDate: audit.endDate,
         lastSyncAt: audit.lastSyncAt,
         profileName: audit.profile?.name ?? null,
+        profileThresholds: audit.profile?.thresholds ?? null,
         generatedAt: new Date(),
       },
       resumen: {

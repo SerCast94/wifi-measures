@@ -19,9 +19,11 @@ import {
   useRunLoraAnalysis,
 } from "@/features/lora/hooks/use-lora";
 import {
+  LORA_AUDIT_RESULT_LABELS,
   LORA_EVAL_STATUS_LABELS,
   LORA_GLOBAL_RESULT_LABELS,
   type LoraAnalysis,
+  type LoraAuditResult,
   type LoraCoherence,
   type LoraEvalStatus,
   type LoraEvaluationItem,
@@ -66,6 +68,20 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 const CATEGORY_ORDER = ["COBERTURA", "RADIO", "PAQUETES", "RUIDO", "MARGEN", "COHERENCIA"];
+
+const REC_SEVERITY_COLORS: Record<string, string> = {
+  alta: "#dc2626",
+  media: "#d97706",
+  baja: "#2563eb",
+  info: "#16a34a",
+};
+
+const REC_CATEGORY_LABELS: Record<string, string> = {
+  COBERTURA: "Cobertura",
+  RADIO: "Señal",
+  ENTREGA: "Entrega",
+  OPERATIVO: "Operativo",
+};
 
 const categoryKey = (item: LoraEvaluationItem): string =>
   item.metric === "NOISE_DELTA"
@@ -378,6 +394,7 @@ const LoraAuditAnalysisPage = () => {
           noise={noise}
           measures={audit.measures}
           noiseRecords={audit.noise}
+          auditResult={audit.result}
         />
       )}
     </div>
@@ -390,6 +407,7 @@ const LoraAnalysisContent = ({
   noise,
   measures = [],
   noiseRecords = [],
+  auditResult = null,
 }: {
   analysis: LoraAnalysis;
   blocks: Array<{
@@ -413,8 +431,16 @@ const LoraAnalysisContent = ({
     txPower?: string | null;
   }>;
   noiseRecords?: Array<{ location?: string | null }>;
+  auditResult?: LoraAuditResult | null;
 }) => {
   const summary = analysis.summary;
+
+  const manualResult = auditResult ? LORA_AUDIT_RESULT_LABELS[auditResult] : null;
+  const manualResultColor: Record<string, string> = {
+    CONFORME: "#16a34a",
+    CONFORME_CON_ANOTACIONES: "#d97706",
+    NO_CONFORME: "#dc2626",
+  };
 
   const [filterCategory, setFilterCategory] = useState<string>("");
   const [filterStatus, setFilterStatus] = useState<string>("");
@@ -532,9 +558,22 @@ const LoraAnalysisContent = ({
           <div className="mb-3 flex flex-wrap items-center gap-6">
             <div>
               <p className="text-sm text-muted-foreground">Resultado global</p>
-              <p className="text-xl font-bold">
-                {LORA_GLOBAL_RESULT_LABELS[summary.globalResult] ??
-                  summary.globalResult}
+              <p
+                className="text-xl font-bold"
+                style={
+                  manualResult
+                    ? { color: manualResultColor[auditResult as LoraAuditResult] }
+                    : undefined
+                }
+              >
+                {manualResult ??
+                  (LORA_GLOBAL_RESULT_LABELS[summary.globalResult] ??
+                    summary.globalResult)}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {manualResult
+                  ? "Decidido por el técnico en la cabecera de la auditoría"
+                  : "Calculado automáticamente por el análisis · cámbialo en el selector de la cabecera"}
               </p>
             </div>
             <div className="flex gap-4">
@@ -571,14 +610,38 @@ const LoraAnalysisContent = ({
           <CardHeader className="pb-1">
             <CardTitle className="text-base">Recomendaciones</CardTitle>
           </CardHeader>
-          <CardContent>
-            <ul className="list-disc pl-5 text-sm">
-              {summary.recommendations.map((recommendation, index) => (
-                <li key={index} className="mb-1 text-muted-foreground">
-                  {recommendation}
-                </li>
-              ))}
-            </ul>
+          <CardContent className="space-y-2">
+            {summary.recommendations.map((recommendation, index) => {
+              const color =
+                REC_SEVERITY_COLORS[recommendation.severity] ?? "#2563eb";
+              return (
+                <div
+                  key={index}
+                  className="rounded-lg border border-l-4 bg-muted/40 p-3"
+                  style={{ borderLeftColor: color }}
+                >
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="size-2 rounded-full"
+                      style={{ backgroundColor: color }}
+                    />
+                    <span className="text-sm font-semibold">
+                      {recommendation.title}
+                    </span>
+                    <span
+                      className="ml-auto rounded-full px-2 py-0.5 text-xs font-semibold text-white"
+                      style={{ backgroundColor: color }}
+                    >
+                      {REC_CATEGORY_LABELS[recommendation.category] ??
+                        recommendation.category}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {recommendation.detail}
+                  </p>
+                </div>
+              );
+            })}
           </CardContent>
         </Card>
       )}

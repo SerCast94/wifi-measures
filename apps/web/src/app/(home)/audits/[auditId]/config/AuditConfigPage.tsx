@@ -369,7 +369,7 @@ const AuditConfigPage = () => {
     floorsText ?? audit.floors.map((floor) => floor.name).join("\n");
 
   return (
-    <div className="container max-w-5xl px-2 py-2 mx-auto mb-4 sm:py-6 animate-in fade-in-0">
+    <div className="container max-w-7xl px-2 py-2 mx-auto mb-4 sm:py-6 animate-in fade-in-0">
       <AuditHeader />
 
       {hasFilters ? (
@@ -484,7 +484,7 @@ const AuditAnexosManager = ({ auditId }: { auditId: string }) => {
                   href={anexo.href}
                   target="_blank"
                   rel="noreferrer"
-                  className="truncate text-primary hover:underline"
+                  className="break-all text-primary hover:underline"
                 >
                   {anexo.name}
                 </a>

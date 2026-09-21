@@ -348,7 +348,7 @@ export function evaluateMargin(
   }
 
   const sfKey = sfFloorKey(sfValue);
-  const floor = sfKey ? SNR_FLOOR_BY_SF[sfKey] ?? -20 : -20;
+  const floor = sfKey ? (SNR_FLOOR_BY_SF[sfKey] ?? -20) : -20;
   const margin = snr - floor;
   const level = marginLevel(margin);
   return {
@@ -515,7 +515,8 @@ export function evaluateNoiseBand(
         entry,
         current,
         weighted,
-        delta: current !== null && weighted !== null ? current - weighted : null,
+        delta:
+          current !== null && weighted !== null ? current - weighted : null,
       };
     })
     .filter((r) => r.current !== null && r.weighted !== null);
@@ -645,7 +646,7 @@ export function coherenceAnalysis(
 
   // Margen LoRa real = SNR - piso teórico del SF
   const sfKey = sfFloorKey(sf);
-  const floor = sfKey ? SNR_FLOOR_BY_SF[sfKey] ?? -20 : -20;
+  const floor = sfKey ? (SNR_FLOOR_BY_SF[sfKey] ?? -20) : -20;
   const snrMargin = snr !== null && !Number.isNaN(snr) ? snr - floor : null;
   const marginOk =
     snrMargin !== null && snrMargin >= LORA_BAREMO.margin.aceptable;
@@ -746,13 +747,27 @@ export function coherenceAnalysis(
 
 // ---------- Resumen global ----------
 
+export type LoraRecommendationSeverity = "alta" | "media" | "baja" | "info";
+export type LoraRecommendationCategory =
+  | "COBERTURA"
+  | "RADIO"
+  | "ENTREGA"
+  | "OPERATIVO";
+
+export interface LoraRecommendation {
+  severity: LoraRecommendationSeverity;
+  category: LoraRecommendationCategory;
+  title: string;
+  detail: string;
+}
+
 export interface AnalysisSummary {
   total: number;
   byStatus: Record<EvalStatus, number>;
   pctPass: number;
   globalResult: string;
   paragraphs: string[];
-  recommendations: string[];
+  recommendations: LoraRecommendation[];
 }
 
 const MEASURE_RE = /^Medida\s+(\d+)/;
@@ -801,21 +816,11 @@ function measureStats(blocks: LoraAnalysisBlock[]): MeasureSignalStats {
   };
 }
 
-const METRIC_SHORT_LABEL: Record<string, string> = {
-  RSSI: "RSSI",
-  SNR: "SNR",
-  PACKET_LOSS: "pérdida de paquetes",
-  ACK_RATE: "acuses",
-  MARGIN: "margen",
-  COHERENCIA: "coherencia cruzada",
-  RSSI_SENOIDAL: "RSSI senoidal",
-};
-
 /** Recomendaciones por medida: una por medida afectada, no por muestra. */
 function measureRecommendations(
   evaluations: EvaluatedMetric[],
   blocks: LoraAnalysisBlock[]
-): string[] {
+): LoraRecommendation[] {
   const byMeasure = new Map<string, EvaluatedMetric[]>();
   for (const e of evaluations) {
     if (!e.sourceLabel || measureNumber(e.sourceLabel) === null) continue;
@@ -827,38 +832,33 @@ function measureRecommendations(
     ([a], [b]) => (measureNumber(a) ?? 0) - (measureNumber(b) ?? 0)
   );
 
-  const recommendations: string[] = [];
+  const recommendations: LoraRecommendation[] = [];
   for (const [sourceLabel, evals] of ordered) {
     const fails = evals.filter((e) => e.status === "FAIL");
     if (fails.length === 0) continue;
 
-    const muestrasSet = new Set(
-      evals.map((e) => e.elementRole).filter((r): r is string => Boolean(r))
-    );
-    const muestras =
-      muestrasSet.size > 0
-        ? muestrasSet.size
-        : fails.find((e) => e.metric === "COBERTURA")?.value ?? fails.length;
-
     const coverage = fails.find((e) => e.metric === "COBERTURA");
     if (coverage) {
-      recommendations.push(
-        `${sourceLabel}: sin cobertura en ${coverage.value ?? muestras} muestra${coverage.value === 1 ? "" : "s"}. Verifica que el dispositivo transmite y el gateway recibe en esa ubicación y repite la medición.`
-      );
+      recommendations.push({
+        severity: "alta",
+        category: "COBERTURA",
+        title: "Restablece la cobertura",
+        detail: `${sourceLabel}: sin enlace en ${coverage.value ?? fails.length} muestra${coverage.value === 1 ? "" : "s"}. Verifica que el dispositivo transmite y el gateway recibe en ese punto y repite la medición.`,
+      });
       continue;
     }
 
     const stats = measureStats(
       blocks.filter((b) => (b.sourceLabel ?? null) === sourceLabel)
     );
+    const muestras = stats.muestras || fails.length || 1;
     const detail: string[] = [];
     if (stats.rssiMin != null) detail.push(`RSSI ≈ ${stats.rssiMin} dBm`);
     if (stats.snrAvg != null) detail.push(`SNR ≈ ${stats.snrAvg} dB`);
     if (stats.lossAvg != null) detail.push(`pérdida media ${stats.lossAvg}%`);
     if (stats.ackPct != null) detail.push(`acuses ${stats.ackPct}%`);
-    const metrics = Array.from(
-      new Set(fails.map((e) => METRIC_SHORT_LABEL[e.metric] ?? e.metric))
-    ).join(", ");
+    const basis =
+      detail.length > 0 ? detail.join(" · ") : "parámetros fuera de rango";
 
     // Solo señal débil (sin pérdidas ni fallos de paquetes): no se degradó la
     // entrega, pero el margen de radio es precario.
@@ -868,21 +868,26 @@ function measureRecommendations(
       )
     );
     const noPacketLoss =
-      stats.lossAvg != null && stats.lossAvg < 2 &&
-      stats.ackPct != null && stats.ackPct >= 99;
-    const basis = detail.length > 0 ? detail.join(", ") : metrics;
+      stats.lossAvg != null &&
+      stats.lossAvg < 2 &&
+      stats.ackPct != null &&
+      stats.ackPct >= 99;
 
-    let message =
-      radioOnly && noPacketLoss && stats.rssiMin != null
-        ? `${sourceLabel}: señal débil en ${muestras} muestra${muestras === 1 ? "" : "s"} (${basis}) sin pérdidas registradas; el enlace entrega pero es frágil, vigila la cobertura y refuerza el punto si degrada.`
-        : `${sourceLabel}: enlace degradado en ${muestras} muestra${muestras === 1 ? "" : "s"} (${basis}); reubica o refuerza el nodo y revisa antenas/SF antes de validar.`;
-    if (
-      stats.pktAvg != null &&
-      stats.pktAvg < LORA_BAREMO.packetConfidence.low
-    ) {
-      message += ` Muestras reducidas (media ${stats.pktAvg} paquete${stats.pktAvg === 1 ? "" : "s"}/muestra); repite con ≥${LORA_BAREMO.packetConfidence.low} paquetes para confirmar.`;
+    if (radioOnly && noPacketLoss && stats.rssiMin != null) {
+      recommendations.push({
+        severity: "media",
+        category: "RADIO",
+        title: "Refuerza la señal del punto",
+        detail: `${sourceLabel}: señal débil en ${muestras} muestra${muestras === 1 ? "" : "s"} (${basis}) pero sin pérdidas registradas; el enlace entrega aunque queda frágil: vigila la cobertura y refuerza el punto si degrada.`,
+      });
+    } else {
+      recommendations.push({
+        severity: "alta",
+        category: "ENTREGA",
+        title: "Revisa el enlace del punto",
+        detail: `${sourceLabel}: enlace degradado en ${muestras} muestra${muestras === 1 ? "" : "s"} (${basis}); reubica o refuerza el nodo y comprueba antenas y SF antes de validar.`,
+      });
     }
-    recommendations.push(message);
   }
   return recommendations;
 }
@@ -938,22 +943,35 @@ export function summarizeAnalysis(
     );
   }
 
-  const recommendations: string[] = measureRecommendations(evaluations, blocks);
+  const recommendations: LoraRecommendation[] = measureRecommendations(
+    evaluations,
+    blocks
+  );
   const warns = evaluations.filter((e) => e.status === "WARNING").length;
   if (warns > 0) {
-    recommendations.push(
-      `Revisa las ${warns} condición(es) en el límite para evitar degradación operativa.`
-    );
+    recommendations.push({
+      severity: "baja",
+      category: "OPERATIVO",
+      title: "Mantén margen operativo",
+      detail: `Revisa las ${warns} condición(es) en el límite para evitar degradación operativa.`,
+    });
   }
   if (byStatus.FAIL > 0 && recommendations.length === 0) {
-    recommendations.push(
-      `Corrige las ${byStatus.FAIL} condición(es) no conforme(s) señaladas en el análisis (RSSI/SNR/pérdidas/margen/ruido).`
-    );
+    recommendations.push({
+      severity: "alta",
+      category: "ENTREGA",
+      title: "Corrige las condiciones no conformes",
+      detail: `Resuelve las ${byStatus.FAIL} condición(es) señaladas en el análisis (RSSI/SNR/pérdidas/margen/ruido) antes de validar el enlace.`,
+    });
   }
   if (recommendations.length === 0 && meaningful > 0) {
-    recommendations.push(
-      "El enlace analizado cumple los criterios definidos; mantener el SF y los niveles actuales."
-    );
+    recommendations.push({
+      severity: "info",
+      category: "OPERATIVO",
+      title: "Enlace conforme",
+      detail:
+        "El enlace analizado cumple los criterios definidos; mantén el SF y los niveles actuales.",
+    });
   }
 
   return {
@@ -968,18 +986,69 @@ export function summarizeAnalysis(
 
 // ---------- Orquestador ----------
 
-const blockWithoutCoverage = (block: LoraAnalysisBlock): boolean =>
-  isNoCoverageSample({
+/**
+ * Evaluación de cobertura POR MEDIDA: una única condición COBERTURA por medida
+ * (en lugar de una fila por muestra del mismo hecho) que refleja cuántas
+ * muestras del punto establecen enlace. Así la categoría Cobertura aparece en
+ * el resumen con estados mezclados (conforme/límite/no conforme) igual que el
+ * resto de categorías, en vez de mostrarse siempre en rojo cuando solo se
+ * registraban los puntos sin cobertura.
+ */
+function evaluateMeasureCoverage(
+  sourceLabel: string | null,
+  blocks: LoraAnalysisBlock[]
+): EvaluatedMetric {
+  const total = blocks.length;
+  const covered = blocks.filter((block) => !blockWithoutCoverage(block)).length;
+  const origin = sourceLabel ? `${sourceLabel}: ` : "";
+  const muestras = (n: number) => (n === 1 ? "muestra" : "muestras");
+
+  if (covered === 0) {
+    // 100% sin cobertura: señales Abnormal, sin RSSI/SNR o pérdida total.
+    return evaluateNoCoverage(sourceLabel, blocks);
+  }
+
+  if (covered === total) {
+    return {
+      category: "COBERTURA",
+      metric: "COBERTURA",
+      value: covered,
+      unit: "muestras",
+      status: "PASS",
+      label: "ENLACE_OK",
+      sourceLabel,
+      elementRole: null,
+      message: `${origin}Enlace establecido en las ${total} ${muestras(total)} del punto; el gateway recibe la trama.`,
+    };
+  }
+
+  const lost = total - covered;
+  return {
+    category: "COBERTURA",
+    metric: "COBERTURA",
+    value: covered,
+    unit: `de ${total} muestras`,
+    status: "WARNING",
+    label: "COBERTURA_PARCIAL",
+    sourceLabel,
+    elementRole: null,
+    message: `${origin}Cobertura parcial: enlace establecido en ${covered} de ${total} muestras (${lost} sin enlace); revisa orientación de antena, distancia o interferencias y repite la medición.`,
+  };
+}
+
+/** Muestra sin cobertura: señales Abnormal, sin RSSI/SNR o pérdida 100 %. */
+function blockWithoutCoverage(block: LoraAnalysisBlock): boolean {
+  return isNoCoverageSample({
     rssi: block.rssi,
     snr: block.snr,
     signal: block.signal,
     packetLossPct: block.packetLossPct,
   });
-
+}
 /**
- * Agrega una medida 100 % sin cobertura: una única condición COBERTURA por
- * medida (con el número de muestras afectadas) en lugar de una fila por
- * muestra del mismo hecho.
+ * Agrega la condición de una medida 100 % sin cobertura (FAIL con el número de
+ * muestras afectadas). Usada por evaluateMeasureCoverage cuando ninguna muestra
+ * del punto estableció enlace.
  */
 function evaluateNoCoverage(
   sourceLabel: string | null,
@@ -1038,10 +1107,10 @@ export function analyzeLora(
     evaluations.push(evaluateNoiseBand(band, entries));
   }
 
-  // Métricas por bloque (Master/Slave), agrupadas por medida: si TODAS las
-  // muestras de una medida carecen de cobertura, se resume en una única
-  // condición COBERTURA por medida (evita una fila por muestra del mismo
-  // hecho).
+  // Métricas por bloque (Master/Slave), agrupadas por medida. Cada medida
+  // aporta una condición COBERTURA (conforme / límite / no conforme); si todas
+  // sus muestras carecen de cobertura se resumen en una única condición FAIL
+  // en vez de una fila por muestra del mismo hecho.
   const byMeasure = new Map<string | null, LoraAnalysisBlock[]>();
   for (const block of blocks) {
     const key = block.sourceLabel ?? null;
@@ -1050,14 +1119,14 @@ export function analyzeLora(
   }
 
   for (const measureBlocks of byMeasure.values()) {
+    const sourceLabel = measureBlocks[0].sourceLabel ?? null;
     const entirelyWithoutCoverage =
       measureBlocks.length > 0 &&
       measureBlocks.every((block) => blockWithoutCoverage(block));
 
+    evaluations.push(evaluateMeasureCoverage(sourceLabel, measureBlocks));
+
     if (entirelyWithoutCoverage) {
-      evaluations.push(
-        evaluateNoCoverage(measureBlocks[0].sourceLabel ?? null, measureBlocks)
-      );
       for (const block of measureBlocks) {
         const txMetric = evaluateTxPower(
           block,

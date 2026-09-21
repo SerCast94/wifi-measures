@@ -80,7 +80,7 @@ const TestRow = ({ test, auditId }: { test: AuditTest; auditId: string }) => {
           <div className="flex items-center gap-2">
             {test.resultStatus ? <EvalStatusBadge status={test.resultStatus} /> : null}
             {test.notes ? (
-              <span className="truncate text-xs text-muted-foreground">📝 {test.notes}</span>
+              <span className="text-xs text-muted-foreground">📝 {test.notes}</span>
             ) : null}
           </div>
         </div>
@@ -155,7 +155,7 @@ const AuditTestsPage = () => {
       : tests;
 
   return (
-    <div className="container max-w-4xl px-2 py-2 mx-auto mb-4 sm:py-6 animate-in fade-in-0">
+    <div className="container max-w-7xl px-2 py-2 mx-auto mb-4 sm:py-6 animate-in fade-in-0">
       <AuditHeader />
 
       <Card className="sticky top-0 z-10 mb-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">

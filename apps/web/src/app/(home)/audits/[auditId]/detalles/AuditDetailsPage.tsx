@@ -86,7 +86,7 @@ const AuditDetailsPage = () => {
   if (isLoading || !evaluations) return <CustomLoading />;
 
   return (
-    <div className="container max-w-4xl px-2 py-2 mx-auto mb-4 sm:py-6 animate-in fade-in-0">
+    <div className="container max-w-7xl px-2 py-2 mx-auto mb-4 sm:py-6 animate-in fade-in-0">
       <AuditHeader />
 
       {evaluations.length === 0 ? (

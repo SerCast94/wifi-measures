@@ -76,7 +76,7 @@ const AuditHeader = () => {
           </Select>
         </div>
       </div>
-      <nav className="flex gap-1 border-b pb-1">
+      <nav className="flex flex-wrap gap-1 border-b pb-1">
         {TABS.map((tab) => {
           const to = `/audits/${auditId}${tab.key ? `/${tab.key}` : ""}`;
           const active =
