@@ -237,6 +237,7 @@ export class ExteriorHeatmapService {
     if (!loraAudit) return [];
     const points: ExteriorHeatmapPoint[] = [];
 
+    const bestByCoord = new Map<string, ExteriorHeatmapPoint>();
     for (const link of loraAudit.measureLinks ?? []) {
       const measure = link.measure;
       const samples = Array.isArray(measure?.samples) ? measure.samples : [];
@@ -246,14 +247,20 @@ export class ExteriorHeatmapService {
         if (lat === null || lon === null) continue;
         const rssi = toFloat(sample.rssi);
         const snr = toFloat(sample.snr);
-        points.push({
-          lat,
-          lon,
-          value: rssi ?? snr ?? 0,
-          label: sample.location ?? measure?.location ?? "Medida LoRa",
-        });
+        const value = rssi ?? snr ?? 0;
+        const coordKey = `${lat},${lon}`;
+        const current = bestByCoord.get(coordKey);
+        if (!current || value > current.value) {
+          bestByCoord.set(coordKey, {
+            lat,
+            lon,
+            value,
+            label: sample.location ?? measure?.location ?? "Medida LoRa",
+          });
+        }
       }
     }
+    points.push(...bestByCoord.values());
 
     for (const link of loraAudit.noiseLinks ?? []) {
       const noise = link.noise;

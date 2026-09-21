@@ -335,7 +335,7 @@ function planHeatmapsHtml(
   };
 
   const measurePoints = (metric: "rssi" | "snr"): Pt[] => {
-    const pts: Pt[] = [];
+    const bestByCoord = new Map<string, Pt>();
     for (const m of measures) {
       for (const s of Array.isArray(m.samples) ? m.samples : []) {
         if (s.latitude == null || s.longitude == null) continue;
@@ -353,21 +353,29 @@ function planHeatmapsHtml(
           signal: s.signal,
           packetLossPct: s.packetLossPct,
         });
-        pts.push({
-          x: xy.x,
-          y: xy.y,
-          value: num,
-          level: noCov
-            ? "SIN_COBERTURA"
-            : num != null
-              ? metric === "rssi"
-                ? rssiLevel(num)
-                : snrLevel(num)
-              : "SIN_COBERTURA",
-        });
+        const level: LoraQualityLevel = noCov
+          ? "SIN_COBERTURA"
+          : num != null
+            ? metric === "rssi"
+              ? rssiLevel(num)
+              : snrLevel(num)
+            : "SIN_COBERTURA";
+        const coordKey = `${xy.x},${xy.y}`;
+        const current = bestByCoord.get(coordKey);
+        if (
+          !current ||
+          (num ?? -Infinity) > (current.value ?? -Infinity)
+        ) {
+          bestByCoord.set(coordKey, {
+            x: xy.x,
+            y: xy.y,
+            value: num,
+            level,
+          });
+        }
       }
     }
-    return pts;
+    return Array.from(bestByCoord.values());
   };
 
   const noiseLevelPoints: Pt[] = [];

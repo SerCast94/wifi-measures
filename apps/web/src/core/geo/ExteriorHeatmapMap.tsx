@@ -136,8 +136,8 @@ const Legend = ({
       </p>
       <div className="h-3 w-44 rounded" style={{ background: gradient }} />
       <div className="mt-1 flex justify-between text-[11px] font-semibold text-foreground">
-        <span>{max.toFixed(0)}</span>
         <span>{min.toFixed(0)}</span>
+        <span>{max.toFixed(0)}</span>
       </div>
     </div>
   );

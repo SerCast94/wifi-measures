@@ -120,7 +120,7 @@ export const LoraPlanHeatmap = ({
     key: "rssi" | "snr"
   ): SamplePt[] => {
     if (!geo) return [];
-    const pts: SamplePt[] = [];
+    const bestByCoord = new Map<string, SamplePt>();
     for (const sample of samples) {
       if (sample.latitude == null || sample.longitude == null) continue;
       const xy = projectToImageXY(
@@ -138,21 +138,29 @@ export const LoraPlanHeatmap = ({
         signal: sample.signal,
         packetLossPct: sample.packetLossPct,
       });
-      pts.push({
-        x: xy.x,
-        y: xy.y,
-        value: valued,
-        measureId: sample.measureId,
-        level: noCov
-          ? "SIN_COBERTURA"
-          : valued
-            ? key === "rssi"
-              ? rssiLevel(valued)
-              : snrLevel(valued)
-            : "SIN_COBERTURA",
-      });
+      const level: LoraQualityLevel = noCov
+        ? "SIN_COBERTURA"
+        : valued != null
+          ? key === "rssi"
+            ? rssiLevel(valued)
+            : snrLevel(valued)
+          : "SIN_COBERTURA";
+      const coordKey = `${xy.x},${xy.y}`;
+      const current = bestByCoord.get(coordKey);
+      if (
+        !current ||
+        (valued ?? -Infinity) > (current.value ?? -Infinity)
+      ) {
+        bestByCoord.set(coordKey, {
+          x: xy.x,
+          y: xy.y,
+          value: valued,
+          measureId: sample.measureId,
+          level,
+        });
+      }
     }
-    return pts;
+    return Array.from(bestByCoord.values());
   };
 
   const signalPts = useMemo(
